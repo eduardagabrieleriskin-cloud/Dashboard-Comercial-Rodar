@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel Comercial — Rodar Mutual</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+</style>
+<style>
+  :root{
+    --navy:#1F3864; --navy-deep:#132648; --blue:#2E5C99; --sky:#5B85C4;
+    --green:#2E7D32; --green-soft:#E5F3E6; --red:#C00000; --red-soft:#FBE7E7;
+    --amber:#BF8F00; --amber-soft:#FBF1DA; --bg:#F3F5F9; --card:#FFFFFF;
+    --ink:#152238; --muted:#66738C; --line:#E3E8F0;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    font-family:'Inter',sans-serif; background:var(--bg); color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.disp{font-family:'Space Grotesk',sans-serif;}
+  .wrap{max-width:1320px; margin:0 auto; padding:0 28px 60px;}
+
+  /* ---- Header ---- */
+  header{
+    background:linear-gradient(135deg, var(--navy-deep) 0%, var(--navy) 55%, var(--blue) 100%);
+    color:#fff; padding:34px 0 46px; position:relative; overflow:hidden;
+  }
+  header::after{
+    content:""; position:absolute; right:-80px; top:-80px; width:320px; height:320px;
+    border-radius:50%; background:radial-gradient(circle, rgba(255,255,255,.10), transparent 70%);
+  }
+  .header-inner{max-width:1320px; margin:0 auto; padding:0 28px; position:relative; z-index:1;
+    display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:18px;}
+  .brand{display:flex; align-items:center; gap:14px;}
+  .brand-mark{
+    width:46px; height:46px; border-radius:12px; background:rgba(255,255,255,.14);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    border:1px solid rgba(255,255,255,.25);
+  }
+  .eyebrow{font-size:12px; letter-spacing:.14em; text-transform:uppercase; opacity:.75; font-weight:600;}
+  h1{font-size:30px; font-weight:700; margin-top:2px;}
+  .header-meta{text-align:right; font-size:13px; opacity:.85; line-height:1.6;}
+  .header-meta b{color:#fff; font-weight:600;}
+
+  /* ---- KPI grid ---- */
+  .kpi-grid{
+    display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; margin-top:-36px; position:relative; z-index:2;
+  }
+  .kpi{
+    background:var(--card); border-radius:14px; padding:18px 20px; box-shadow:0 6px 20px rgba(20,35,70,.08);
+    border-top:3px solid var(--navy);
+  }
+  .kpi.blue{border-top-color:var(--blue)}
+  .kpi.green{border-top-color:var(--green)}
+  .kpi.red{border-top-color:var(--red)}
+  .kpi.amber{border-top-color:var(--amber)}
+  .kpi-label{font-size:11.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); font-weight:600;}
+  .kpi-value{font-size:26px; font-weight:700; margin-top:6px; font-family:'Space Grotesk',sans-serif;}
+  .kpi-sub{font-size:12px; color:var(--muted); margin-top:4px;}
+  .kpi-value.up{color:var(--green);} .kpi-value.down{color:var(--red);}
+
+  /* ---- sections ---- */
+  section{margin-top:42px;}
+  .section-head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:16px; flex-wrap:wrap; gap:8px;}
+  .section-head h2{font-size:19px; font-weight:600;}
+  .section-head p{font-size:13px; color:var(--muted);}
+  .card{background:var(--card); border-radius:14px; padding:22px; box-shadow:0 4px 14px rgba(20,35,70,.06); border:1px solid var(--line);}
+
+  /* ---- funnel ---- */
+  .funnel-wrap{display:grid; grid-template-columns:1.3fr 1fr; gap:20px;}
+  .funnel-stage{display:flex; align-items:center; gap:16px; margin-bottom:10px;}
+  .funnel-bar{
+    height:46px; border-radius:8px; display:flex; align-items:center; padding:0 16px; color:#fff;
+    font-weight:600; font-size:14px; transition:width .6s ease; white-space:nowrap;
+  }
+  .funnel-label{width:190px; font-size:13px; color:var(--muted); font-weight:600; text-align:right; flex-shrink:0;}
+  .funnel-pct{font-size:12px; opacity:.85; margin-left:8px; font-weight:500;}
+  .leak-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .leak-card{border-radius:12px; padding:16px; }
+  .leak-card.red{background:var(--red-soft);}
+  .leak-card.amber{background:var(--amber-soft);}
+  .leak-card .num{font-size:24px; font-weight:700; font-family:'Space Grotesk',sans-serif;}
+  .leak-card.red .num{color:var(--red);}
+  .leak-card.amber .num{color:var(--amber);}
+  .leak-card .lbl{font-size:12px; color:var(--muted); font-weight:600; margin-top:2px;}
+  .leak-card .val{font-size:12px; color:var(--ink); margin-top:8px; font-weight:500;}
+
+  /* ---- charts row ---- */
+  .charts-row{display:grid; grid-template-columns:1.4fr 1fr; gap:20px;}
+  .chart-box{position:relative; height:320px;}
+
+  /* ---- table ---- */
+  .tabs{display:flex; gap:6px; background:#EDF0F6; border-radius:10px; padding:4px; width:fit-content;}
+  .tab-btn{border:none; background:transparent; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:600;
+    color:var(--muted); cursor:pointer; font-family:'Inter',sans-serif;}
+  .tab-btn.active{background:#fff; color:var(--navy); box-shadow:0 2px 6px rgba(20,35,70,.12);}
+  .table-controls{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:12px;}
+  .search-input{
+    border:1px solid var(--line); border-radius:8px; padding:9px 14px; font-size:13px; width:260px;
+    font-family:'Inter',sans-serif; background:#fff;
+  }
+  .search-input:focus{outline:2px solid var(--sky); outline-offset:1px;}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  thead th{
+    text-align:right; padding:10px 12px; background:var(--navy); color:#fff; font-weight:600; font-size:11.5px;
+    letter-spacing:.03em; text-transform:uppercase; cursor:pointer; user-select:none; white-space:nowrap;
+  }
+  thead th:first-child, thead th:nth-child(2){text-align:left;}
+  thead th:hover{background:var(--blue);}
+  tbody td{padding:9px 12px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap;}
+  tbody td:first-child, tbody td:nth-child(2){text-align:left; font-weight:600;}
+  tbody tr:hover{background:#F5F8FD;}
+  .badge{display:inline-block; padding:3px 9px; border-radius:20px; font-size:12px; font-weight:600;}
+  .badge.g{background:var(--green-soft); color:var(--green);}
+  .badge.a{background:var(--amber-soft); color:var(--amber);}
+  .badge.r{background:var(--red-soft); color:var(--red);}
+  .table-scroll{overflow-x:auto; border-radius:10px; border:1px solid var(--line);}
+  .sort-arrow{opacity:.5; font-size:10px; margin-left:3px;}
+
+  footer{margin-top:56px; padding:24px 0; border-top:1px solid var(--line); font-size:12px; color:var(--muted);}
+  footer b{color:var(--ink);}
+
+  @media (max-width:900px){
+    .kpi-grid{grid-template-columns:repeat(2,1fr);}
+    .funnel-wrap{grid-template-columns:1fr;}
+    .charts-row{grid-template-columns:1fr;}
+    .header-inner{flex-direction:column; align-items:flex-start;}
+    .header-meta{text-align:left;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2L21 6V11C21 16.5 17.5 20.7 12 22C6.5 20.7 3 16.5 3 11V6L12 2Z" stroke="white" stroke-width="1.6" fill="rgba(255,255,255,.12)"/><path d="M8.5 12L11 14.5L16 9" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div>
+        <div class="eyebrow">Rodar Mutual · Diretoria Comercial</div>
+        <h1>Painel Comercial — Maio &amp; Junho 2026</h1>
+      </div>
+    </div>
+    <div class="header-meta">
+      Base de estoque de referência: <b>30/06/2026</b><br>
+      Unidade: cadastro oficial de representantes (coluna UNIDADE)<br>
+      Gerado em <b id="gen-date"></b>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="kpi-grid" id="kpi-grid"></div>
+
+  <section>
+    <div class="section-head">
+      <div><h2>Detalhamento — Unidade e Representante</h2><p>Vendas, estoque, inadimplência e perda. Ordenado por Ativos (maior para o menor). Clique nos cabeçalhos para reordenar.</p></div>
+    </div>
+    <div class="card">
+      <div class="table-controls">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="unidade">Por Unidade</button>
+          <button class="tab-btn" data-tab="representante">Por Representante</button>
+        </div>
+        <input class="search-input" id="search-box" placeholder="Buscar...">
+      </div>
+      <div class="table-scroll">
+        <table id="data-table">
+          <thead><tr id="table-head"></tr></thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <b>Metodologia:</b> Vendas = registros com data de adesão dentro do mês (Maio: BASE_Dados_Maio26; Junho: RelatorioAdesaoPorPeriodo).
+    Estoque = foto da base em 30/06/2026 (BASE_20260630). Unidade = coluna UNIDADE do cadastro oficial de representantes.
+    Carteira saudável/em vigor = Ativos + Inadimplentes. % Inadimplência e % Perda calculados sobre o universo total de placas (todos os status).
+    Valores de mensalidade correspondem ao valor ajustado cobrado do associado.
+  </footer>
+
+</div>
+
+<script id="dashboard-data" type="application/json">{"kpis": {"vendas_maio": 588, "vendas_junho": 614, "valor_vendas_maio": 460196.63999999996, "valor_vendas_junho": 516373.17000000004, "ativos_qtde": 2495, "ativos_valor": 2217469.28, "inadimplentes_qtde": 348, "inadimplentes_valor": 274284.7, "cancelados_qtde": 212, "cancelados_valor": 223526.02, "inativos_qtde": 104, "inativos_valor": 98903.11, "pendentes_qtde": 5, "pendentes_valor": 2753.7799999999997, "total_carteira_qtde": 2843, "total_carteira_valor": 2491753.98, "total_universo_qtde": 3164, "pct_inadimplencia": 0.10998735777496839, "pct_perda": 0.09987357774968394, "var_vendas_pct": 0.04421768707482993, "ticket_medio_junho": 840.9986482084691}, "unidade": [{"nome": "(Sem Unidade)", "vendas_maio": 36, "vendas_junho": 42, "valor_maio": 28786.05, "valor_junho": 22959.67, "ativos": 100, "valor_ativos": 58892.83, "inadimplentes": 7, "valor_inadimplentes": 5916.39, "cancelados": 12, "inativos": 9, "pendentes": 0, "total": 107, "valor_total": 64809.22, "pct_inadimplencia": 0.0547, "pct_perda": 0.1641}, {"nome": "623 Kcor Light Itajai Cordeiro", "vendas_maio": 6, "vendas_junho": 4, "valor_maio": 6136.19, "valor_junho": 2146.79, "ativos": 39, "valor_ativos": 37382.8, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 1, "inativos": 2, "pendentes": 0, "total": 39, "valor_total": 37382.8, "pct_inadimplencia": 0.0, "pct_perda": 0.0714}, {"nome": "Campo Grande", "vendas_maio": 55, "vendas_junho": 49, "valor_maio": 36024.31, "valor_junho": 36094.44, "ativos": 205, "valor_ativos": 198415.94, "inadimplentes": 71, "valor_inadimplentes": 39759.54, "cancelados": 20, "inativos": 19, "pendentes": 0, "total": 276, "valor_total": 238175.48, "pct_inadimplencia": 0.2254, "pct_perda": 0.1238}, {"nome": "Cascavel", "vendas_maio": 62, "vendas_junho": 33, "valor_maio": 40928.23, "valor_junho": 22509.11, "ativos": 135, "valor_ativos": 115369.44, "inadimplentes": 17, "valor_inadimplentes": 12057.18, "cancelados": 1, "inativos": 4, "pendentes": 0, "total": 152, "valor_total": 127426.62, "pct_inadimplencia": 0.1083, "pct_perda": 0.0318}, {"nome": "Chapecó", "vendas_maio": 0, "vendas_junho": 10, "valor_maio": 0.0, "valor_junho": 16972.08, "ativos": 13, "valor_ativos": 19722.72, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 0, "inativos": 0, "pendentes": 0, "total": 13, "valor_total": 19722.72, "pct_inadimplencia": 0.0, "pct_perda": 0.0}, {"nome": "Fernandopolis", "vendas_maio": 18, "vendas_junho": 10, "valor_maio": 22546.52, "valor_junho": 11870.95, "ativos": 31, "valor_ativos": 38392.07, "inadimplentes": 8, "valor_inadimplentes": 6844.57, "cancelados": 0, "inativos": 2, "pendentes": 0, "total": 39, "valor_total": 45236.64, "pct_inadimplencia": 0.1951, "pct_perda": 0.0488}, {"nome": "Goiania", "vendas_maio": 10, "vendas_junho": 24, "valor_maio": 7829.28, "valor_junho": 33830.61, "ativos": 48, "valor_ativos": 62460.14, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 1, "inativos": 0, "pendentes": 0, "total": 48, "valor_total": 62460.14, "pct_inadimplencia": 0.0, "pct_perda": 0.0204}, {"nome": "Itajaí", "vendas_maio": 50, "vendas_junho": 48, "valor_maio": 30787.2, "valor_junho": 33798.19, "ativos": 345, "valor_ativos": 263613.38, "inadimplentes": 58, "valor_inadimplentes": 46412.33, "cancelados": 20, "inativos": 19, "pendentes": 0, "total": 403, "valor_total": 310025.71, "pct_inadimplencia": 0.1312, "pct_perda": 0.0882}, {"nome": "Joinville", "vendas_maio": 69, "vendas_junho": 82, "valor_maio": 58428.93, "valor_junho": 65333.22, "ativos": 399, "valor_ativos": 373184.32, "inadimplentes": 32, "valor_inadimplentes": 26060.46, "cancelados": 20, "inativos": 1, "pendentes": 0, "total": 431, "valor_total": 399244.78, "pct_inadimplencia": 0.0708, "pct_perda": 0.0465}, {"nome": "Kcor Digital", "vendas_maio": 2, "vendas_junho": 0, "valor_maio": 3987.17, "valor_junho": 0.0, "ativos": 2, "valor_ativos": 3987.17, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 0, "inativos": 0, "pendentes": 0, "total": 2, "valor_total": 3987.17, "pct_inadimplencia": 0.0, "pct_perda": 0.0}, {"nome": "Londrina", "vendas_maio": 77, "vendas_junho": 118, "valor_maio": 53900.6, "valor_junho": 89778.13, "ativos": 330, "valor_ativos": 279579.86, "inadimplentes": 25, "valor_inadimplentes": 22571.38, "cancelados": 16, "inativos": 7, "pendentes": 0, "total": 355, "valor_total": 302151.24, "pct_inadimplencia": 0.0661, "pct_perda": 0.0608}, {"nome": "Maringá", "vendas_maio": 137, "vendas_junho": 122, "valor_maio": 112191.16, "valor_junho": 89888.08, "ativos": 464, "valor_ativos": 387800.58, "inadimplentes": 98, "valor_inadimplentes": 88938.26, "cancelados": 66, "inativos": 12, "pendentes": 4, "total": 562, "valor_total": 476738.84, "pct_inadimplencia": 0.1522, "pct_perda": 0.1211}, {"nome": "Maringá, Londrina, Campo Grande, Joinville, Ponta Grossa", "vendas_maio": 6, "vendas_junho": 25, "valor_maio": 4299.57, "valor_junho": 19466.84, "ativos": 64, "valor_ativos": 54284.87, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 0, "inativos": 2, "pendentes": 0, "total": 64, "valor_total": 54284.87, "pct_inadimplencia": 0.0, "pct_perda": 0.0303}, {"nome": "Ponta Grossa", "vendas_maio": 0, "vendas_junho": 0, "valor_maio": 0.0, "valor_junho": 0.0, "ativos": 6, "valor_ativos": 4876.34, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 15, "inativos": 2, "pendentes": 0, "total": 6, "valor_total": 4876.34, "pct_inadimplencia": 0.0, "pct_perda": 0.7391}, {"nome": "São Paulo", "vendas_maio": 59, "vendas_junho": 47, "valor_maio": 53206.53, "valor_junho": 71725.06, "ativos": 313, "valor_ativos": 318361.92, "inadimplentes": 32, "valor_inadimplentes": 25724.59, "cancelados": 39, "inativos": 25, "pendentes": 1, "total": 345, "valor_total": 344086.51, "pct_inadimplencia": 0.078, "pct_perda": 0.1561}, {"nome": "Todas Unidades Kcor", "vendas_maio": 1, "vendas_junho": 0, "valor_maio": 1144.9, "valor_junho": 0.0, "ativos": 1, "valor_ativos": 1144.9, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 1, "inativos": 0, "pendentes": 0, "total": 1, "valor_total": 1144.9, "pct_inadimplencia": 0.0, "pct_perda": 0.5}], "representante": [{"nome": "(Sem Representante)", "vendas_maio": 21, "vendas_junho": 0, "valor_maio": 16556.67, "valor_junho": 0.0, "ativos": 18, "valor_ativos": 13677.83, "inadimplentes": 4, "valor_inadimplentes": 3746.78, "cancelados": 7, "inativos": 6, "pendentes": 0, "total": 22, "valor_total": 17424.61, "pct_inadimplencia": 0.1143, "pct_perda": 0.3714}, {"nome": "ANDRESSA ROBERTO GONÇALVES", "vendas_maio": 8, "vendas_junho": 25, "valor_maio": 3498.82, "valor_junho": 22250.1, "ativos": 70, "valor_ativos": 51670.18, "inadimplentes": 6, "valor_inadimplentes": 6616.01, "cancelados": 6, "inativos": 2, "pendentes": 0, "total": 76, "valor_total": 58286.19, "pct_inadimplencia": 0.0714, "pct_perda": 0.0952}, {"nome": "Alcione Maria De Paiva", "vendas_maio": 3, "vendas_junho": 1, "valor_maio": 1070.64, "valor_junho": 1185.89, "ativos": 13, "valor_ativos": 11605.71, "inadimplentes": 3, "valor_inadimplentes": 2200.38, "cancelados": 0, "inativos": 0, "pendentes": 0, "total": 16, "valor_total": 13806.09, "pct_inadimplencia": 0.1875, "pct_perda": 0.0}, {"nome": "Andrielly Schaufler Dos Santos", "vendas_maio": 0, "vendas_junho": 0, "valor_maio": 0.0, "valor_junho": 0.0, "ativos": 2, "valor_ativos": 1322.29, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 1, "inativos": 0, "pendentes": 0, "total": 2, "valor_total": 1322.29, "pct_inadimplencia": 0.0, "pct_perda": 0.3333}, {"nome": "CARLOS EDUARDO CORDEIRO", "vendas_maio": 0, "vendas_junho": 4, "valor_maio": 0.0, "valor_junho": 2146.79, "ativos": 4, "valor_ativos": 2146.79, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 0, "inativos": 0, "pendentes": 0, "total": 4, "valor_total": 2146.79, "pct_inadimplencia": 0.0, "pct_perda": 0.0}, {"nome": "CARLOS EDUARDO CORDEIRO N", "vendas_maio": 6, "vendas_junho": 0, "valor_maio": 6136.19, "valor_junho": 0.0, "ativos": 35, "valor_ativos": 35236.01, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 1, "inativos": 2, "pendentes": 0, "total": 35, "valor_total": 35236.01, "pct_inadimplencia": 0.0, "pct_perda": 0.0789}, {"nome": "CRISLAYNE FORTUNATO RAMOS", "vendas_maio": 11, "vendas_junho": 8, "valor_maio": 8799.59, "valor_junho": 7306.89, "ativos": 41, "valor_ativos": 36778.65, "inadimplentes": 6, "valor_inadimplentes": 8544.58, "cancelados": 0, "inativos": 0, "pendentes": 0, "total": 47, "valor_total": 45323.23, "pct_inadimplencia": 0.1277, "pct_perda": 0.0}, {"nome": "Celso Kaue Fagundes", "vendas_maio": 4, "vendas_junho": 0, "valor_maio": 4409.22, "valor_junho": 0.0, "ativos": 4, "valor_ativos": 1971.15, "inadimplentes": 2, "valor_inadimplentes": 2801.81, "cancelados": 0, "inativos": 1, "pendentes": 0, "total": 6, "valor_total": 4772.96, "pct_inadimplencia": 0.2857, "pct_perda": 0.1429}, {"nome": "Daiane Cristina Veiga Da Silva", "vendas_maio": 56, "vendas_junho": 79, "valor_maio": 41882.03, "valor_junho": 58809.97, "ativos": 194, "valor_ativos": 173331.38, "inadimplentes": 7, "valor_inadimplentes": 4436.28, "cancelados": 6, "inativos": 3, "pendentes": 0, "total": 201, "valor_total": 177767.66, "pct_inadimplencia": 0.0333, "pct_perda": 0.0429}, {"nome": "Danilo Rogério de Araújo Silva", "vendas_maio": 0, "vendas_junho": 0, "valor_maio": 0.0, "valor_junho": 0.0, "ativos": 0, "valor_ativos": 0.0, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 0, "inativos": 0, "pendentes": 0, "total": 0, "valor_total": 0.0, "pct_inadimplencia": 0, "pct_perda": 0}, {"nome": "Denner Rodrigo Domingos Rodrigues", "vendas_maio": 1, "vendas_junho": 0, "valor_maio": 1144.9, "valor_junho": 0.0, "ativos": 1, "valor_ativos": 1144.9, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 1, "inativos": 0, "pendentes": 0, "total": 1, "valor_total": 1144.9, "pct_inadimplencia": 0.0, "pct_perda": 0.5}, {"nome": "FABIANO FANCHELI FERNANDES", "vendas_maio": 1, "vendas_junho": 4, "valor_maio": 1313.19, "valor_junho": 4300.21, "ativos": 7, "valor_ativos": 7076.79, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 0, "inativos": 0, "pendentes": 0, "total": 7, "valor_total": 7076.79, "pct_inadimplencia": 0.0, "pct_perda": 0.0}, {"nome": "Felipe Ferreira", "vendas_maio": 0, "vendas_junho": 0, "valor_maio": 0.0, "valor_junho": 0.0, "ativos": 2, "valor_ativos": 1589.74, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 0, "inativos": 0, "pendentes": 0, "total": 2, "valor_total": 1589.74, "pct_inadimplencia": 0.0, "pct_perda": 0.0}, {"nome": "Gabriel Prieto Soares", "vendas_maio": 1, "vendas_junho": 0, "valor_maio": 309.35, "valor_junho": 0.0, "ativos": 20, "valor_ativos": 7644.59, "inadimplentes": 1, "valor_inadimplentes": 152.49, "cancelados": 4, "inativos": 3, "pendentes": 0, "total": 21, "valor_total": 7797.08, "pct_inadimplencia": 0.0357, "pct_perda": 0.25}, {"nome": "Glaucia Fagundes", "vendas_maio": 9, "vendas_junho": 16, "valor_maio": 10402.33, "valor_junho": 14658.31, "ativos": 83, "valor_ativos": 107274.28, "inadimplentes": 2, "valor_inadimplentes": 2342.64, "cancelados": 4, "inativos": 0, "pendentes": 0, "total": 85, "valor_total": 109616.92, "pct_inadimplencia": 0.0225, "pct_perda": 0.0449}, {"nome": "Heitor Gabriel Silva Longuini", "vendas_maio": 4, "vendas_junho": 2, "valor_maio": 2642.35, "valor_junho": 576.77, "ativos": 13, "valor_ativos": 9272.27, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 0, "inativos": 0, "pendentes": 0, "total": 13, "valor_total": 9272.27, "pct_inadimplencia": 0.0, "pct_perda": 0.0}, {"nome": "Hugo Eity Felix Sigaki", "vendas_maio": 40, "vendas_junho": 18, "valor_maio": 32774.05, "valor_junho": 11615.6, "ativos": 82, "valor_ativos": 50730.64, "inadimplentes": 26, "valor_inadimplentes": 22006.92, "cancelados": 12, "inativos": 1, "pendentes": 0, "total": 108, "valor_total": 72737.56, "pct_inadimplencia": 0.2149, "pct_perda": 0.1074}, {"nome": "Icaro Gomes De Oliveira", "vendas_maio": 34, "vendas_junho": 14, "valor_maio": 18597.96, "valor_junho": 10356.35, "ativos": 64, "valor_ativos": 63138.52, "inadimplentes": 36, "valor_inadimplentes": 17989.88, "cancelados": 17, "inativos": 6, "pendentes": 0, "total": 100, "valor_total": 81128.4, "pct_inadimplencia": 0.2927, "pct_perda": 0.187}, {"nome": "Izabel Uchoa Kawahisa Mendonça", "vendas_maio": 20, "vendas_junho": 31, "valor_maio": 16113.16, "valor_junho": 21437.88, "ativos": 134, "valor_ativos": 128200.63, "inadimplentes": 35, "valor_inadimplentes": 21769.66, "cancelados": 3, "inativos": 13, "pendentes": 0, "total": 169, "valor_total": 149970.29, "pct_inadimplencia": 0.1892, "pct_perda": 0.0865}, {"nome": "Izidoro Svarcz", "vendas_maio": 0, "vendas_junho": 0, "valor_maio": 0.0, "valor_junho": 0.0, "ativos": 2, "valor_ativos": 2214.93, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 0, "inativos": 0, "pendentes": 0, "total": 2, "valor_total": 2214.93, "pct_inadimplencia": 0.0, "pct_perda": 0.0}, {"nome": "JOSE LUIZ DOS SANTOS FILHO 90081803591", "vendas_maio": 18, "vendas_junho": 28, "valor_maio": 14518.81, "valor_junho": 23188.25, "ativos": 50, "valor_ativos": 46221.35, "inadimplentes": 4, "valor_inadimplentes": 2633.06, "cancelados": 1, "inativos": 5, "pendentes": 4, "total": 54, "valor_total": 48854.41, "pct_inadimplencia": 0.0625, "pct_perda": 0.0938}, {"nome": "JULIANO DE COSTA", "vendas_maio": 0, "vendas_junho": 0, "valor_maio": 0.0, "valor_junho": 0.0, "ativos": 0, "valor_ativos": 0.0, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 0, "inativos": 0, "pendentes": 0, "total": 0, "valor_total": 0.0, "pct_inadimplencia": 0, "pct_perda": 0}, {"nome": "Jenifer Andressa Franzen", "vendas_maio": 0, "vendas_junho": 1, "valor_maio": 0.0, "valor_junho": 388.55, "ativos": 1, "valor_ativos": 388.55, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 0, "inativos": 0, "pendentes": 0, "total": 1, "valor_total": 388.55, "pct_inadimplencia": 0.0, "pct_perda": 0.0}, {"nome": "Jose Elias Dos Santos Filho", "vendas_maio": 0, "vendas_junho": 0, "valor_maio": 0.0, "valor_junho": 0.0, "ativos": 14, "valor_ativos": 14080.19, "inadimplentes": 4, "valor_inadimplentes": 3221.66, "cancelados": 0, "inativos": 0, "pendentes": 0, "total": 18, "valor_total": 17301.85, "pct_inadimplencia": 0.2222, "pct_perda": 0.0}, {"nome": "Jose Olibio Da Silva Magalhaes", "vendas_maio": 4, "vendas_junho": 0, "valor_maio": 2771.1, "valor_junho": 0.0, "ativos": 52, "valor_ativos": 58931.52, "inadimplentes": 6, "valor_inadimplentes": 5375.96, "cancelados": 1, "inativos": 4, "pendentes": 0, "total": 58, "valor_total": 64307.48, "pct_inadimplencia": 0.0952, "pct_perda": 0.0794}, {"nome": "Júlia De Lima Schimanski", "vendas_maio": 0, "vendas_junho": 0, "valor_maio": 0.0, "valor_junho": 0.0, "ativos": 2, "valor_ativos": 2180.19, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 0, "inativos": 0, "pendentes": 0, "total": 2, "valor_total": 2180.19, "pct_inadimplencia": 0.0, "pct_perda": 0.0}, {"nome": "KAUAN SAIMON FLORES SCHMIT", "vendas_maio": 53, "vendas_junho": 48, "valor_maio": 42722.83, "valor_junho": 40640.25, "ativos": 291, "valor_ativos": 268757.07, "inadimplentes": 17, "valor_inadimplentes": 14808.38, "cancelados": 18, "inativos": 1, "pendentes": 0, "total": 308, "valor_total": 283565.45, "pct_inadimplencia": 0.052, "pct_perda": 0.0581}, {"nome": "Keny Eduarda Alves Silva Jerônimo", "vendas_maio": 3, "vendas_junho": 0, "valor_maio": 811.32, "valor_junho": 0.0, "ativos": 19, "valor_ativos": 9573.5, "inadimplentes": 1, "valor_inadimplentes": 597.06, "cancelados": 2, "inativos": 0, "pendentes": 0, "total": 20, "valor_total": 10170.56, "pct_inadimplencia": 0.0455, "pct_perda": 0.0909}, {"nome": "LEANDRO SANTOS CORTEZ", "vendas_maio": 6, "vendas_junho": 25, "valor_maio": 4299.57, "valor_junho": 19466.84, "ativos": 64, "valor_ativos": 54284.87, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 0, "inativos": 2, "pendentes": 0, "total": 64, "valor_total": 54284.87, "pct_inadimplencia": 0.0, "pct_perda": 0.0303}, {"nome": "LILIAN FERNANDA DE OLIVEIRA DO", "vendas_maio": 18, "vendas_junho": 0, "valor_maio": 17068.34, "valor_junho": 0.0, "ativos": 39, "valor_ativos": 36411.87, "inadimplentes": 2, "valor_inadimplentes": 2995.18, "cancelados": 1, "inativos": 1, "pendentes": 0, "total": 41, "valor_total": 39407.05, "pct_inadimplencia": 0.0465, "pct_perda": 0.0465}, {"nome": "Leonardo Vinicius Vieira", "vendas_maio": 34, "vendas_junho": 38, "valor_maio": 22354.77, "valor_junho": 27505.81, "ativos": 128, "valor_ativos": 101454.17, "inadimplentes": 38, "valor_inadimplentes": 35200.84, "cancelados": 45, "inativos": 4, "pendentes": 0, "total": 166, "valor_total": 136655.01, "pct_inadimplencia": 0.1767, "pct_perda": 0.2279}, {"nome": "Loreci Salete Pesenatto Ribeiro", "vendas_maio": 0, "vendas_junho": 9, "valor_maio": 0.0, "valor_junho": 16583.53, "ativos": 12, "valor_ativos": 19334.17, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 0, "inativos": 0, "pendentes": 0, "total": 12, "valor_total": 19334.17, "pct_inadimplencia": 0.0, "pct_perda": 0.0}, {"nome": "Luana Soares Alves Dos Reis", "vendas_maio": 0, "vendas_junho": 0, "valor_maio": 0.0, "valor_junho": 0.0, "ativos": 2, "valor_ativos": 1339.12, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 14, "inativos": 2, "pendentes": 0, "total": 2, "valor_total": 1339.12, "pct_inadimplencia": 0.0, "pct_perda": 0.8889}, {"nome": "Lucas Reis", "vendas_maio": 58, "vendas_junho": 33, "valor_maio": 38157.13, "valor_junho": 22509.11, "ativos": 83, "valor_ativos": 56437.92, "inadimplentes": 11, "valor_inadimplentes": 6681.22, "cancelados": 0, "inativos": 0, "pendentes": 0, "total": 94, "valor_total": 63119.14, "pct_inadimplencia": 0.117, "pct_perda": 0.0}, {"nome": "Luiz Andre Senna Muniz Barreto Junior", "vendas_maio": 0, "vendas_junho": 0, "valor_maio": 0.0, "valor_junho": 0.0, "ativos": 17, "valor_ativos": 5722.61, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 4, "inativos": 0, "pendentes": 0, "total": 17, "valor_total": 5722.61, "pct_inadimplencia": 0.0, "pct_perda": 0.1905}, {"nome": "Luiz Augusto Ferraz Roma", "vendas_maio": 10, "vendas_junho": 24, "valor_maio": 7829.28, "valor_junho": 33830.61, "ativos": 48, "valor_ativos": 62460.14, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 1, "inativos": 0, "pendentes": 0, "total": 48, "valor_total": 62460.14, "pct_inadimplencia": 0.0, "pct_perda": 0.0204}, {"nome": "MARCOS ROBERTO RODRIGUES", "vendas_maio": 0, "vendas_junho": 1, "valor_maio": 0.0, "valor_junho": 1007.16, "ativos": 7, "valor_ativos": 6747.6, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 0, "inativos": 0, "pendentes": 0, "total": 7, "valor_total": 6747.6, "pct_inadimplencia": 0.0, "pct_perda": 0.0}, {"nome": "MAYARA APARECIDA ALVES", "vendas_maio": 5, "vendas_junho": 19, "valor_maio": 3921.53, "valor_junho": 12213.25, "ativos": 61, "valor_ativos": 54806.07, "inadimplentes": 4, "valor_inadimplentes": 3980.8, "cancelados": 1, "inativos": 0, "pendentes": 0, "total": 65, "valor_total": 58786.87, "pct_inadimplencia": 0.0606, "pct_perda": 0.0152}, {"nome": "Marco Antonio Nunes Kuabata", "vendas_maio": 23, "vendas_junho": 21, "valor_maio": 15941.6, "valor_junho": 28958.67, "ativos": 114, "valor_ativos": 120157.29, "inadimplentes": 14, "valor_inadimplentes": 14269.45, "cancelados": 2, "inativos": 3, "pendentes": 1, "total": 128, "valor_total": 134426.74, "pct_inadimplencia": 0.1045, "pct_perda": 0.0373}, {"nome": "Maria Isabela Carneiro De Oliveira", "vendas_maio": 29, "vendas_junho": 25, "valor_maio": 35100.68, "valor_junho": 41580.5, "ativos": 161, "valor_ativos": 169139.09, "inadimplentes": 3, "valor_inadimplentes": 3453.36, "cancelados": 31, "inativos": 14, "pendentes": 0, "total": 164, "valor_total": 172592.45, "pct_inadimplencia": 0.0144, "pct_perda": 0.2153}, {"nome": "Mateus Teodoro Liiber", "vendas_maio": 1, "vendas_junho": 0, "valor_maio": 195.38, "valor_junho": 0.0, "ativos": 5, "valor_ativos": 1080.7, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 1, "inativos": 0, "pendentes": 0, "total": 5, "valor_total": 1080.7, "pct_inadimplencia": 0.0, "pct_perda": 0.1667}, {"nome": "Matheus Junior Dos Santos", "vendas_maio": 18, "vendas_junho": 10, "valor_maio": 22546.52, "valor_junho": 11870.95, "ativos": 31, "valor_ativos": 38392.07, "inadimplentes": 8, "valor_inadimplentes": 6844.57, "cancelados": 0, "inativos": 2, "pendentes": 0, "total": 39, "valor_total": 45236.64, "pct_inadimplencia": 0.1951, "pct_perda": 0.0488}, {"nome": "NERIELTON MATIAS BOENO RODRIGUES", "vendas_maio": 11, "vendas_junho": 15, "valor_maio": 11784.57, "valor_junho": 12479.72, "ativos": 47, "valor_ativos": 49621.18, "inadimplentes": 11, "valor_inadimplentes": 7271.28, "cancelados": 1, "inativos": 0, "pendentes": 0, "total": 58, "valor_total": 56892.46, "pct_inadimplencia": 0.1864, "pct_perda": 0.0169}, {"nome": "Paulo Henrique De Souza Locateli", "vendas_maio": 11, "vendas_junho": 13, "valor_maio": 13178.25, "valor_junho": 8822.14, "ativos": 71, "valor_ativos": 68852.13, "inadimplentes": 20, "valor_inadimplentes": 16020.18, "cancelados": 7, "inativos": 1, "pendentes": 0, "total": 91, "valor_total": 84872.31, "pct_inadimplencia": 0.202, "pct_perda": 0.0808}, {"nome": "Paulo Roberto Gramkow", "vendas_maio": 1, "vendas_junho": 0, "valor_maio": 481.19, "valor_junho": 0.0, "ativos": 0, "valor_ativos": 0.0, "inadimplentes": 11, "valor_inadimplentes": 5293.08, "cancelados": 1, "inativos": 0, "pendentes": 0, "total": 11, "valor_total": 5293.08, "pct_inadimplencia": 0.9167, "pct_perda": 0.0833}, {"nome": "RODRIGO CARLOS VASCONCELOS", "vendas_maio": 0, "vendas_junho": 0, "valor_maio": 0.0, "valor_junho": 0.0, "ativos": 1, "valor_ativos": 1145.1, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 0, "inativos": 0, "pendentes": 0, "total": 1, "valor_total": 1145.1, "pct_inadimplencia": 0.0, "pct_perda": 0.0}, {"nome": "Rodrigo Vieira Da Silva", "vendas_maio": 25, "vendas_junho": 16, "valor_maio": 6498.16, "valor_junho": 5603.4, "ativos": 103, "valor_ativos": 32501.54, "inadimplentes": 7, "valor_inadimplentes": 1787.91, "cancelados": 6, "inativos": 8, "pendentes": 0, "total": 110, "valor_total": 34289.45, "pct_inadimplencia": 0.0565, "pct_perda": 0.1129}, {"nome": "SANDRO HEITOR LONGUINI", "vendas_maio": 1, "vendas_junho": 14, "valor_maio": 855.0, "valor_junho": 9865.46, "ativos": 33, "valor_ativos": 31331.9, "inadimplentes": 2, "valor_inadimplentes": 1537.5, "cancelados": 0, "inativos": 0, "pendentes": 0, "total": 35, "valor_total": 32869.4, "pct_inadimplencia": 0.0571, "pct_perda": 0.0}, {"nome": "Silmara Ulatosk", "vendas_maio": 14, "vendas_junho": 42, "valor_maio": 11920.03, "valor_junho": 22959.67, "ativos": 62, "valor_ativos": 37570.41, "inadimplentes": 2, "valor_inadimplentes": 2017.12, "cancelados": 1, "inativos": 0, "pendentes": 0, "total": 64, "valor_total": 39587.53, "pct_inadimplencia": 0.0308, "pct_perda": 0.0154}, {"nome": "Suza Mara De Souza", "vendas_maio": 4, "vendas_junho": 0, "valor_maio": 1093.61, "valor_junho": 0.0, "ativos": 25, "valor_ativos": 17459.83, "inadimplentes": 12, "valor_inadimplentes": 5801.4, "cancelados": 6, "inativos": 8, "pendentes": 0, "total": 37, "valor_total": 23261.23, "pct_inadimplencia": 0.2353, "pct_perda": 0.2745}, {"nome": "Tiago Alves De Souza", "vendas_maio": 0, "vendas_junho": 0, "valor_maio": 0.0, "valor_junho": 0.0, "ativos": 4, "valor_ativos": 2789.87, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 0, "inativos": 0, "pendentes": 0, "total": 4, "valor_total": 2789.87, "pct_inadimplencia": 0.0, "pct_perda": 0.0}, {"nome": "Tiago Vinicius Pasquini", "vendas_maio": 7, "vendas_junho": 16, "valor_maio": 7989.6, "valor_junho": 13536.48, "ativos": 91, "valor_ativos": 82873.45, "inadimplentes": 31, "valor_inadimplentes": 30368.17, "cancelados": 2, "inativos": 9, "pendentes": 0, "total": 122, "valor_total": 113241.62, "pct_inadimplencia": 0.2331, "pct_perda": 0.0827}, {"nome": "Vitória Lissandra Caspers Da Silva", "vendas_maio": 0, "vendas_junho": 0, "valor_maio": 0.0, "valor_junho": 0.0, "ativos": 1, "valor_ativos": 1976.16, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 0, "inativos": 1, "pendentes": 0, "total": 1, "valor_total": 1976.16, "pct_inadimplencia": 0.0, "pct_perda": 0.5}, {"nome": "WAGNER DE OLIVEIRA NETO", "vendas_maio": 2, "vendas_junho": 0, "valor_maio": 3987.17, "valor_junho": 0.0, "ativos": 2, "valor_ativos": 3987.17, "inadimplentes": 0, "valor_inadimplentes": 0.0, "cancelados": 0, "inativos": 0, "pendentes": 0, "total": 2, "valor_total": 3987.17, "pct_inadimplencia": 0.0, "pct_perda": 0.0}, {"nome": "Wagner Malveiro Silva", "vendas_maio": 13, "vendas_junho": 14, "valor_maio": 8519.75, "valor_junho": 8718.06, "ativos": 65, "valor_ativos": 53433.2, "inadimplentes": 12, "valor_inadimplentes": 11519.09, "cancelados": 4, "inativos": 2, "pendentes": 0, "total": 77, "valor_total": 64952.29, "pct_inadimplencia": 0.1446, "pct_perda": 0.0723}], "meta": {"gerado_em": "01/07/2026", "periodo": "Maio e Junho de 2026", "base_ref": "30/06/2026"}}</script>
+<script>
+const DATA = JSON.parse(document.getElementById('dashboard-data').textContent);
+const K = DATA.kpis;
+
+document.getElementById('gen-date').textContent = DATA.meta.gerado_em;
+
+function brl(v){ return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits:0}); }
+function num(v){ return v.toLocaleString('pt-BR'); }
+function pct(v){ return (v*100).toLocaleString('pt-BR', {maximumFractionDigits:1}) + '%'; }
+
+/* ---------------- KPI CARDS ---------------- */
+const kpiGrid = document.getElementById('kpi-grid');
+const kpiDefs = [
+  {cls:'amber', label:'Taxa de Perda', value: pct(K.pct_perda), sub: num(K.cancelados_qtde+K.inativos_qtde) + ' canceladas/inativas'},
+  {cls:'', label:'Vendas — Maio/26', value: num(K.vendas_maio), sub: brl(K.valor_vendas_maio)},
+  {cls:'blue', label:'Vendas — Junho/26', value: num(K.vendas_junho), sub: brl(K.valor_vendas_junho)},
+  {cls: K.var_vendas_pct>=0?'green':'red', label:'Variação Maio → Junho', value: (K.var_vendas_pct>=0?'+':'')+pct(K.var_vendas_pct), sub:'Qtde de vendas', valueClass:K.var_vendas_pct>=0?'up':'down'},
+  {cls:'amber', label:'Ticket Médio — Junho', value: brl(K.ticket_medio_junho), sub:'Por placa vendida'},
+  {cls:'', label:'Carteira em Vigor', value: num(K.total_carteira_qtde), sub:'Ativos + Inadimplentes'},
+  {cls:'blue', label:'Valor da Carteira', value: brl(K.total_carteira_valor), sub:'Ativos + Inadimplentes'},
+  {cls:'red', label:'Inadimplência', value: num(K.inadimplentes_qtde) + ' placas', sub: pct(K.pct_inadimplencia) + ' da base total'},
+];
+kpiGrid.innerHTML = kpiDefs.map(k => `
+  <div class="kpi ${k.cls}">
+    <div class="kpi-label">${k.label}</div>
+    <div class="kpi-value ${k.valueClass||''}">${k.value}</div>
+    <div class="kpi-sub">${k.sub}</div>
+  </div>`).join('');
+
+/* ---------------- TABLE ---------------- */
+let currentTab = 'unidade';
+let sortKey = 'ativos';
+let sortDir = -1;
+
+const cols = [
+  {key:'nome', label:'Nome'},
+  {key:'vendas_maio', label:'Vendas Maio', fmt:num},
+  {key:'vendas_junho', label:'Vendas Junho', fmt:num},
+  {key:'ativos', label:'Ativos', fmt:num},
+  {key:'inadimplentes', label:'Inadimplentes', fmt:num},
+  {key:'cancelados', label:'Cancelados', fmt:num},
+  {key:'inativos', label:'Inativos', fmt:num},
+  {key:'total', label:'Total (Ativo+Inad.)', fmt:num},
+  {key:'valor_total', label:'Valor (Ativo+Inad.)', fmt:brl},
+  {key:'pct_inadimplencia', label:'% Inadimpl.', fmt:pct, badge:true},
+  {key:'pct_perda', label:'% Perda', fmt:pct, badge:true},
+];
+
+function badgeClass(v){ if(v>=0.15) return 'r'; if(v>=0.07) return 'a'; return 'g'; }
+
+function renderHead(){
+  const head = document.getElementById('table-head');
+  head.innerHTML = cols.map(c => {
+    const arrow = sortKey===c.key ? (sortDir===1?'▲':'▼') : '';
+    return `<th data-key="${c.key}">${c.label}<span class="sort-arrow">${arrow}</span></th>`;
+  }).join('');
+  head.querySelectorAll('th').forEach(th => th.addEventListener('click', () => {
+    const key = th.dataset.key;
+    if(sortKey===key){ sortDir *= -1; } else { sortKey = key; sortDir = key==='nome'?1:-1; }
+    renderBody();
+    renderHead();
+  }));
+}
+
+function renderBody(){
+  const q = document.getElementById('search-box').value.trim().toLowerCase();
+  let rows = DATA[currentTab].filter(r => r.nome.toLowerCase().includes(q));
+  rows = rows.slice().sort((a,b) => {
+    let av=a[sortKey], bv=b[sortKey];
+    if(typeof av === 'string') return sortDir*av.localeCompare(bv, 'pt-BR');
+    return sortDir*(av-bv);
+  });
+  document.getElementById('table-body').innerHTML = rows.map(r => `
+    <tr>${cols.map(c => {
+      const v = r[c.key];
+      const disp = c.fmt ? c.fmt(v) : v;
+      if(c.badge) return `<td><span class="badge ${badgeClass(v)}">${disp}</span></td>`;
+      return `<td>${disp}</td>`;
+    }).join('')}</tr>`).join('');
+}
+
+document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => {
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  currentTab = btn.dataset.tab;
+  sortKey = 'ativos'; sortDir = -1;
+  renderHead(); renderBody();
+}));
+document.getElementById('search-box').addEventListener('input', renderBody);
+
+renderHead();
+renderBody();
+</script>
+</body>
+</html>
