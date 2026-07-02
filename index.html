@@ -130,8 +130,94 @@
     .header-meta{text-align:left;}
   }
 </style>
+<style>
+  /* ---- Tela de login ---- */
+  #gate{
+    position:fixed; inset:0; z-index:9999;
+    background:linear-gradient(135deg,#132648 0%,#1F3864 55%,#2E5C99 100%);
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  #gate .box{
+    width:100%; max-width:380px; background:#fff; border-radius:16px;
+    padding:38px 32px 32px; box-shadow:0 24px 60px rgba(0,0,0,.35);
+    text-align:center; font-family:'Inter',sans-serif;
+  }
+  #gate .logo{
+    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:22px;
+    color:#1F3864; letter-spacing:-.5px; margin-bottom:6px;
+  }
+  #gate .sub{ color:#66738C; font-size:13px; margin-bottom:26px; }
+  #gate label{ display:block; text-align:left; font-size:12px; font-weight:600;
+    color:#152238; margin-bottom:7px; }
+  #gate input[type=password]{
+    width:100%; padding:13px 14px; border:1.5px solid #E3E8F0; border-radius:10px;
+    font-size:15px; font-family:'Inter',sans-serif; outline:none; transition:border .15s;
+  }
+  #gate input[type=password]:focus{ border-color:#2E5C99; }
+  #gate button{
+    width:100%; margin-top:18px; padding:13px; border:none; border-radius:10px;
+    background:#1F3864; color:#fff; font-size:15px; font-weight:600; cursor:pointer;
+    font-family:'Inter',sans-serif; transition:background .15s;
+  }
+  #gate button:hover{ background:#2E5C99; }
+  #gate .err{ color:#C00000; font-size:13px; margin-top:14px; min-height:18px; font-weight:500; }
+  #gate .remember{ display:flex; align-items:center; gap:8px; margin-top:16px;
+    font-size:13px; color:#66738C; }
+  #gate .remember input{ width:16px; height:16px; accent-color:#1F3864; }
+  body.locked{ overflow:hidden; }
+</style>
 </head>
-<body>
+<body class="locked">
+
+<div id="gate">
+  <div class="box">
+    <div class="logo">Rodar Mutual</div>
+    <div class="sub">Painel Comercial — acesso restrito</div>
+    <form id="gate-form" autocomplete="off">
+      <label for="gate-pass">Senha de acesso</label>
+      <input type="password" id="gate-pass" placeholder="Digite a senha" autofocus>
+      <label class="remember"><input type="checkbox" id="gate-remember" checked> Manter conectado neste navegador</label>
+      <button type="submit">Entrar</button>
+      <div class="err" id="gate-err"></div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function(){
+  var HASH = "ce58f12f16dae88c4a0c7afdf02806b51cf2b1fdebc654e9f0b96c142934336a";
+  var KEY = "rm_painel_auth";
+  async function sha256(txt){
+    var buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(txt));
+    return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,"0");}).join("");
+  }
+  function unlock(){
+    var g = document.getElementById("gate");
+    if(g) g.parentNode.removeChild(g);
+    document.body.classList.remove("locked");
+  }
+  // já autenticado nesta sessão / navegador?
+  if(localStorage.getItem(KEY)===HASH || sessionStorage.getItem(KEY)===HASH){ unlock(); return; }
+  document.addEventListener("DOMContentLoaded", function(){
+    var form = document.getElementById("gate-form");
+    var err  = document.getElementById("gate-err");
+    form.addEventListener("submit", async function(e){
+      e.preventDefault();
+      var val = document.getElementById("gate-pass").value;
+      var h = await sha256(val);
+      if(h===HASH){
+        if(document.getElementById("gate-remember").checked) localStorage.setItem(KEY,HASH);
+        else sessionStorage.setItem(KEY,HASH);
+        unlock();
+      } else {
+        err.textContent = "Senha incorreta. Tente novamente.";
+        document.getElementById("gate-pass").value = "";
+        document.getElementById("gate-pass").focus();
+      }
+    });
+  });
+})();
+</script>
 
 <header>
   <div class="header-inner">
