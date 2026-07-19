@@ -272,6 +272,25 @@
 })();
 </script>
 
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2L21 6V11C21 16.5 17.5 20.7 12 22C6.5 20.7 3 16.5 3 11V6L12 2Z" stroke="white" stroke-width="1.6" fill="rgba(255,255,255,.12)"/><path d="M8.5 12L11 14.5L16 9" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div>
+        <div class="eyebrow">Rodar Mutual · Diretoria Comercial</div>
+        <h1>Painel Comercial — Maio &amp; Junho 2026</h1>
+      </div>
+    </div>
+    <div class="header-meta">
+      Base de estoque de referência: <b>30/06/2026</b><br>
+      Unidade: cadastro oficial de representantes (coluna UNIDADE)<br>
+      Gerado em <b id="gen-date"></b>
+    </div>
+  </div>
+</header>
+
 <div class="wrap" style="padding-top:32px;">
 
   <div style="display:flex; justify-content:flex-end; margin-bottom:14px;">
@@ -312,6 +331,8 @@
 <script>
 const DATA = JSON.parse(document.getElementById('dashboard-data').textContent);
 const K = DATA.kpis;
+
+document.getElementById('gen-date').textContent = DATA.meta.gerado_em;
 
 function brl(v){ return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits:0}); }
 function num(v){ return v.toLocaleString('pt-BR'); }
