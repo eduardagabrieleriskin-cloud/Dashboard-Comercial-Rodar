@@ -39,31 +39,59 @@ function ehTeste(nome) {
   const n = (nome || '').trim().toLowerCase();
   return n === 'eduarda' || n === 'yara' || n === 'teste' || /^teste?\b/.test(n) || n.includes('(teste)');
 }
+const SOMA = ['vendas_maio','vendas_junho','vendas_julho','ativos','valor_ativos','inadimplentes','valor_inadimplentes','cancelados','inativos','pendentes','total','valor_total'];
+
 function limpar(d) {
-  const relatorio = { removidos: [], reatribuidos: [], semUnidade: [] };
-  // reatribui unidade pelo mapa canônico quando faltar/for genérica
+  const removidos = [], reatribuidos = [];
+  // 1) reatribui unidade pelo mapa canônico quando faltar
   for (const r of d.representante) {
     const semU = !r.unidade || r.unidade === '(Sem Unidade)';
     const canon = MAPA[(r.nome || '').trim().toUpperCase()];
-    if (semU && canon) { r.unidade = canon; relatorio.reatribuidos.push(r.nome + ' -> ' + canon); }
+    if (semU && canon) { r.unidade = canon; reatribuidos.push(r.nome + ' -> ' + canon); }
   }
-  // filtra: fora testes e quem continua sem unidade
+  // 2) filtra: fora testes, "(Sem Representante)" e quem continua sem unidade
   const antes = d.representante.length;
   d.representante = d.representante.filter(r => {
-    if (ehTeste(r.nome)) { relatorio.removidos.push(r.nome + ' (teste)'); return false; }
-    if (r.nome === '(Sem Representante)') { relatorio.removidos.push('(Sem Representante)'); return false; }
-    const semU = !r.unidade || r.unidade === '(Sem Unidade)';
-    if (semU) {
-      // sem carteira ativa -> descarta; com carteira -> mantém mas registra p/ revisão
-      if ((r.ativos || 0) === 0 && (r.total || 0) === 0) { relatorio.removidos.push(r.nome + ' (sem unidade, sem carteira)'); return false; }
-      relatorio.semUnidade.push(r.nome + ' (ativos=' + r.ativos + ')');
-    }
+    if (ehTeste(r.nome)) { removidos.push(r.nome + ' (teste)'); return false; }
+    if (r.nome === '(Sem Representante)') { removidos.push('(Sem Representante)'); return false; }
+    if (!r.unidade || r.unidade === '(Sem Unidade)') { removidos.push(r.nome + ' (sem unidade)'); return false; }
     return true;
   });
-  log('limpeza: ' + antes + ' -> ' + d.representante.length + ' representantes'
-    + ' | reatribuidos=' + relatorio.reatribuidos.length
-    + ' | removidos=' + relatorio.removidos.length
-    + (relatorio.semUnidade.length ? ' | AINDA SEM UNIDADE: ' + relatorio.semUnidade.join('; ') : ''));
+
+  // 3) reconstrói a tabela de UNIDADES a partir dos representantes limpos (consistência total)
+  const uMap = {};
+  for (const r of d.representante) {
+    const u = uMap[r.unidade] || (uMap[r.unidade] = { nome: r.unidade });
+    for (const f of SOMA) u[f] = (u[f] || 0) + (r[f] || 0);
+  }
+  for (const u of Object.values(uMap)) {
+    const uni = u.total + u.cancelados + u.inativos + u.pendentes;
+    u.pct_inadimplencia = uni ? +(u.inadimplentes / uni).toFixed(4) : 0;
+    u.pct_perda = uni ? +((u.cancelados + u.inativos) / uni).toFixed(4) : 0;
+  }
+  d.unidade = Object.values(uMap).sort((a, b) => b.ativos - a.ativos);
+
+  // 4) recalcula os KPIs de contagem/valor a partir dos representantes limpos
+  const K = d.kpis, T = {};
+  for (const f of SOMA) T[f] = d.representante.reduce((s, r) => s + (r[f] || 0), 0);
+  K.ativos_qtde = T.ativos; K.ativos_valor = +T.valor_ativos.toFixed(2);
+  K.inadimplentes_qtde = T.inadimplentes; K.inadimplentes_valor = +T.valor_inadimplentes.toFixed(2);
+  K.cancelados_qtde = T.cancelados; K.inativos_qtde = T.inativos; K.pendentes_qtde = T.pendentes;
+  K.carteira_qtde = T.ativos + T.inadimplentes;
+  K.carteira_valor = +(T.valor_ativos + T.valor_inadimplentes).toFixed(2);
+  K.carteira_ticket_medio = K.carteira_qtde ? +(K.carteira_valor / K.carteira_qtde).toFixed(2) : 0;
+  K.total_universo_qtde = T.ativos + T.inadimplentes + T.cancelados + T.inativos + T.pendentes;
+  K.pct_inadimplencia = K.total_universo_qtde ? +(K.inadimplentes_qtde / K.total_universo_qtde).toFixed(4) : 0;
+  K.pct_perda = K.total_universo_qtde ? +((T.cancelados + T.inativos) / K.total_universo_qtde).toFixed(4) : 0;
+  // vendas por mês: contagem recalculada dos reps; valores/ticket mantidos da origem (ajustando ticket)
+  if (K.vendas_maio)  { K.vendas_maio.qtde  = T.vendas_maio;  K.vendas_maio.ticket_medio  = T.vendas_maio  ? +(K.vendas_maio.valor  / T.vendas_maio ).toFixed(2) : 0; }
+  if (K.vendas_junho) { K.vendas_junho.qtde = T.vendas_junho; K.vendas_junho.ticket_medio = T.vendas_junho ? +(K.vendas_junho.valor / T.vendas_junho).toFixed(2) : 0; }
+  if (K.vendas_julho) { K.vendas_julho.qtde = T.vendas_julho; K.vendas_julho.ticket_medio = T.vendas_julho ? +(K.vendas_julho.valor / T.vendas_julho).toFixed(2) : 0; }
+  if (K.vendas_maio && K.vendas_junho) K.var_maio_junho_pct = K.vendas_maio.qtde ? +((K.vendas_junho.qtde - K.vendas_maio.qtde) / K.vendas_maio.qtde).toFixed(4) : 0;
+
+  log('limpeza: ' + antes + ' -> ' + d.representante.length + ' reps | reatribuidos=' + reatribuidos.length
+    + ' | removidos=' + removidos.length + (removidos.length ? ' [' + removidos.join('; ') + ']' : '')
+    + ' | unidades=' + d.unidade.length + ' | carteira=' + K.carteira_qtde);
   return d;
 }
 
