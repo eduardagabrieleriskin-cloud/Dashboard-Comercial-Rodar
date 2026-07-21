@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel Comercial — Rodar Mutual</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root{
+    --navy:#1F3864; --navy-deep:#132648; --blue:#2E5C99; --sky:#5B85C4;
+    --green:#2E7D32; --green-soft:#E5F3E6; --red:#C00000; --red-soft:#FBE7E7;
+    --amber:#BF8F00; --amber-soft:#FBF1DA; --bg:#F3F5F9; --card:#FFFFFF;
+    --ink:#152238; --muted:#66738C; --line:#E3E8F0;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{ font-family:'Inter',sans-serif; background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased; }
+  h1,h2,h3,.disp{font-family:'Space Grotesk',sans-serif;}
+  .wrap{max-width:1320px; margin:0 auto; padding:0 28px 60px;}
+
+  header{
+    background:linear-gradient(135deg, var(--navy-deep) 0%, var(--navy) 55%, var(--blue) 100%);
+    color:#fff; padding:34px 0 46px; position:relative; overflow:hidden;
+  }
+  header::after{
+    content:""; position:absolute; right:-80px; top:-80px; width:320px; height:320px;
+    border-radius:50%; background:radial-gradient(circle, rgba(255,255,255,.10), transparent 70%);
+  }
+  .header-inner{max-width:1320px; margin:0 auto; padding:0 28px; position:relative; z-index:1;
+    display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:18px;}
+  .brand{display:flex; align-items:center; gap:14px;}
+  .brand-mark{ width:46px; height:46px; border-radius:12px; background:rgba(255,255,255,.14);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0; border:1px solid rgba(255,255,255,.25); }
+  .eyebrow{font-size:12px; letter-spacing:.14em; text-transform:uppercase; opacity:.75; font-weight:600;}
+  h1{font-size:30px; font-weight:700; margin-top:2px;}
+  .header-meta{text-align:right; font-size:13px; opacity:.85; line-height:1.6;}
+  .header-meta b{color:#fff; font-weight:600;}
+
+  .kpi-grid{ display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; margin-top:-36px; position:relative; z-index:2; }
+  .kpi{ background:var(--card); border-radius:14px; padding:18px 20px; box-shadow:0 6px 20px rgba(20,35,70,.08); border-top:3px solid var(--navy); }
+  .kpi.blue{border-top-color:var(--blue)} .kpi.green{border-top-color:var(--green)}
+  .kpi.red{border-top-color:var(--red)} .kpi.amber{border-top-color:var(--amber)}
+  .kpi-label{font-size:11.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); font-weight:600; display:flex; justify-content:space-between; align-items:center;}
+  .kpi-value{font-size:26px; font-weight:700; margin-top:6px; font-family:'Space Grotesk',sans-serif;}
+  .kpi-sub{font-size:12px; color:var(--muted); margin-top:4px; display:flex; justify-content:space-between; gap:8px;}
+  .kpi-sub b{color:var(--ink); font-weight:600;}
+  .kpi-value.up{color:var(--green);} .kpi-value.down{color:var(--red);}
+  .est-tag{background:var(--amber-soft); color:var(--amber); font-size:9.5px; font-weight:700; padding:2px 6px; border-radius:6px; text-transform:none; letter-spacing:0;}
+
+  section{margin-top:42px;}
+  .section-head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:16px; flex-wrap:wrap; gap:8px;}
+  .section-head h2{font-size:19px; font-weight:600;}
+  .section-head p{font-size:13px; color:var(--muted);}
+  .card{background:var(--card); border-radius:14px; padding:22px; box-shadow:0 4px 14px rgba(20,35,70,.06); border:1px solid var(--line);}
+
+  .ma-controls{display:flex; align-items:center; gap:10px;}
+  .ma-select{ border:1px solid var(--line); border-radius:8px; padding:8px 12px; font-size:13px; font-family:'Inter',sans-serif; background:#fff; cursor:pointer; }
+  .callout{ display:flex; align-items:center; gap:10px; background:#F5F8FD; border-radius:10px; padding:10px 16px; font-size:13px; margin-bottom:16px; flex-wrap:wrap; }
+  .callout b{font-size:16px; font-family:'Space Grotesk',sans-serif;}
+  .callout.up b{color:var(--green);} .callout.down b{color:var(--red);}
+  .chart-box{position:relative; height:340px;}
+  .warn-note{font-size:12px; color:var(--muted); margin-top:12px; line-height:1.6; background:var(--amber-soft); padding:10px 14px; border-radius:8px;}
+
+  .tabs{display:flex; gap:6px; background:#EDF0F6; border-radius:10px; padding:4px; width:fit-content;}
+  .tab-btn{border:none; background:transparent; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:600; color:var(--muted); cursor:pointer; font-family:'Inter',sans-serif;}
+  .tab-btn.active{background:#fff; color:var(--navy); box-shadow:0 2px 6px rgba(20,35,70,.12);}
+  .table-controls{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:12px;}
+  .search-input{ border:1px solid var(--line); border-radius:8px; padding:9px 14px; font-size:13px; width:260px; font-family:'Inter',sans-serif; background:#fff; }
+  .search-input:focus{outline:2px solid var(--sky); outline-offset:1px;}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  thead th{ text-align:right; padding:10px 12px; background:var(--navy); color:#fff; font-weight:600; font-size:11.5px;
+    letter-spacing:.03em; text-transform:uppercase; cursor:pointer; user-select:none; white-space:nowrap; }
+  thead th:first-child, thead th:nth-child(2){text-align:left;}
+  thead th:hover{background:var(--blue);}
+  tbody td{padding:9px 12px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap;}
+  tbody td:first-child, tbody td:nth-child(2){text-align:left; font-weight:600;}
+  tbody tr:hover{background:#F5F8FD;}
+  .badge{display:inline-block; padding:3px 9px; border-radius:20px; font-size:12px; font-weight:600;}
+  .badge.g{background:var(--green-soft); color:var(--green);} .badge.a{background:var(--amber-soft); color:var(--amber);} .badge.r{background:var(--red-soft); color:var(--red);}
+  .table-scroll{overflow-x:auto; border-radius:10px; border:1px solid var(--line);}
+  .sort-arrow{opacity:.5; font-size:10px; margin-left:3px;}
+
+  footer{margin-top:56px; padding:24px 0; border-top:1px solid var(--line); font-size:12px; color:var(--muted); line-height:1.7;}
+  footer b{color:var(--ink);}
+
+  @media (max-width:900px){
+    .kpi-grid{grid-template-columns:repeat(2,1fr);}
+    .header-inner{flex-direction:column; align-items:flex-start;}
+    .header-meta{text-align:left;}
+  }
+
+  #lock-screen{ position:fixed; inset:0; z-index:999; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(135deg, var(--navy-deep) 0%, var(--navy) 55%, var(--blue) 100%); padding:20px; }
+  .lock-card{ background:#fff; border-radius:16px; padding:40px 36px; max-width:380px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,.3); text-align:center; }
+  .lock-mark{ width:56px; height:56px; border-radius:14px; background:var(--navy); margin:0 auto 18px; display:flex; align-items:center; justify-content:center; }
+  .lock-card h2{font-size:19px; color:var(--ink); margin-bottom:6px;}
+  .lock-card p{font-size:13px; color:var(--muted); margin-bottom:22px;}
+  .lock-input{ width:100%; padding:12px 14px; border:1.5px solid var(--line); border-radius:9px; font-size:15px;
+    font-family:'Inter',sans-serif; text-align:center; letter-spacing:.02em; margin-bottom:12px; }
+  .lock-input:focus{outline:none; border-color:var(--blue);}
+  .lock-btn{ width:100%; padding:12px; border:none; border-radius:9px; background:var(--navy); color:#fff;
+    font-size:14px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; }
+  .lock-btn:hover{background:var(--blue);}
+  .lock-error{color:var(--red); font-size:12.5px; margin-top:10px; min-height:16px; font-weight:600;}
+  #app-content{display:none;}
+</style>
+</head>
+<body>
+
+<div id="lock-screen">
+  <div class="lock-card">
+    <div class="lock-mark">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 2L21 6V11C21 16.5 17.5 20.7 12 22C6.5 20.7 3 16.5 3 11V6L12 2Z" stroke="white" stroke-width="1.6" fill="rgba(255,255,255,.12)"/><path d="M8.5 12L11 14.5L16 9" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <h2>Painel Comercial — Rodar Mutual</h2>
+    <p>Acesso restrito. Digite a senha para continuar.</p>
+    <input type="password" id="lock-pass" class="lock-input" placeholder="Senha" autocomplete="off">
+    <button class="lock-btn" id="lock-btn">Entrar</button>
+    <div class="lock-error" id="lock-error"></div>
+  </div>
+</div>
+
+<div id="app-content">
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2L21 6V11C21 16.5 17.5 20.7 12 22C6.5 20.7 3 16.5 3 11V6L12 2Z" stroke="white" stroke-width="1.6" fill="rgba(255,255,255,.12)"/><path d="M8.5 12L11 14.5L16 9" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div>
+        <div class="eyebrow">Rodar Mutual · Diretoria Comercial</div>
+        <h1>Painel Comercial — Maio, Junho &amp; Julho 2026</h1>
+      </div>
+    </div>
+    <div class="header-meta">
+      Vendas (adesões) até <b id="data-ultima"></b> · Julho ainda em andamento<br>
+      Unidade: cadastro de subscrição (Franquia)<br>
+      Gerado em <b id="gen-date"></b>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="kpi-grid" id="kpi-grid"></div>
+
+  <section>
+    <div class="section-head">
+      <div><h2>Ritmo de Vendas — Diário</h2><p>Quantidade de vendas (adesões) por dia. Média móvel calculada apenas sobre dias úteis (segunda a sexta), para não distorcer a média com fins de semana sem vendas.</p></div>
+      <div class="ma-controls">
+        <label for="ma-window" style="font-size:13px; color:var(--muted); font-weight:600;">Média móvel:</label>
+        <select id="ma-window" class="ma-select">
+          <option value="7">7 dias</option>
+          <option value="15">15 dias</option>
+          <option value="30">30 dias</option>
+        </select>
+      </div>
+    </div>
+    <div class="card">
+      <div class="callout" id="ma-callout"></div>
+      <div class="chart-box"><canvas id="chart-daily"></canvas></div>
+      <div class="warn-note">
+        <b>Metodologia da média móvel:</b> sábados, domingos (e possíveis feriados) são excluídos do cálculo da média —
+        apenas dias úteis contam, evitando que a média "afunde" artificialmente por dias sem expediente comercial.
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div><h2>Detalhamento — Unidade e Representante</h2><p>Vendas, estoque, inadimplência e perda. Ordenado por Ativos (maior para o menor). Clique nos cabeçalhos para reordenar.</p></div>
+    </div>
+    <div class="card">
+      <div class="table-controls">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="unidade">Por Unidade</button>
+          <button class="tab-btn" data-tab="representante">Por Representante</button>
+        </div>
+        <input class="search-input" id="search-box" placeholder="Buscar...">
+      </div>
+      <div class="table-scroll">
+        <table id="data-table">
+          <thead><tr id="table-head"></tr></thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <b>Metodologia:</b> Vendas = registros com data de adesão dentro do mês. Maio: BASE_Dados_Maio26 (congelado, não afetado pelas
+    novas planilhas). Junho e Julho: BASE atualizada em 19/07/2026 — Julho está parcial (dados de 01 a 16/07).<br>
+    <b>Valores (Junho e Julho):</b> valor de mensalidade contratada (BENEFÍCIO - VALOR DA MENSALIDADE AJUSTADA), extraído
+    diretamente da base de dados mais recente (19/07/2026) — não é uma estimativa nem o valor da proposta de subscrição
+    (que pode não refletir descontos adicionais aplicados). Cobertura: 96,6% em Junho e 99,7% em Julho.<br>
+    <b>Carteira em Vigor:</b> soma de placas <b>Ativas + Inadimplentes</b> (3.133 placas = 2.815 Ativas + 318 Inadimplentes). Valor
+    da carteira: R$ 2.747.547,16 (mesma fonte de valor contratado), com cobertura de 94,5% das placas em vigor.<br>
+    <b>Unidade:</b> cruzada pelo nome do representante com o arquivo "Controle de Subscrição V2" (coluna Franquia) — usado
+    apenas para esse cruzamento, não para valores. De 62 representantes, 59 foram associados a uma unidade.<br>
+    <b>Representante — preenchimento de lacunas:</b> placas sem representante identificado foram preenchidas por inferência
+    geográfica (cidade do associado → representante mais frequente na mesma cidade).<br>
+    % Inadimplência e % Perda calculados sobre o universo total de placas (todos os status: Ativo, Inadimplente, Cancelado,
+    Inativo, Pendente).
+  </footer>
+
+</div>
+</div>
+
+<script id="dashboard-data" type="application/json">__DATA__</script>
+<script>
+const DATA = JSON.parse(document.getElementById('dashboard-data').textContent);
+const K = DATA.kpis;
+
+document.getElementById('gen-date').textContent = DATA.meta.gerado_em;
+function fmtDateBR(iso){ const [y,m,d]=iso.split('-'); return d+'/'+m+'/'+y; }
+document.getElementById('data-ultima').textContent = fmtDateBR(K.data_ultima_venda);
+
+function brl(v){ return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits:0}); }
+function num(v){ return v.toLocaleString('pt-BR'); }
+function pct(v){ return (v*100).toLocaleString('pt-BR', {maximumFractionDigits:1}) + '%'; }
+
+/* ---------------- KPI CARDS ---------------- */
+const kpiGrid = document.getElementById('kpi-grid');
+
+function mainCard(label, qtde, valor, ticket, cls, note){
+  return `<div class="kpi ${cls}">
+    <div class="kpi-label">${label}</div>
+    <div class="kpi-value">${num(qtde)}</div>
+    ${note?`<div class="kpi-sub"><span style="color:var(--muted); font-style:italic;">${note}</span></div>`:''}
+    <div class="kpi-sub"><span>Valor</span><b>${brl(valor)}</b></div>
+    <div class="kpi-sub"><span>Ticket médio</span><b>${brl(ticket)}</b></div>
+  </div>`;
+}
+function miniCard(label, value, cls, sub, valueClass){
+  return `<div class="kpi ${cls}">
+    <div class="kpi-label">${label}</div>
+    <div class="kpi-value ${valueClass||''}">${value}</div>
+    <div class="kpi-sub"><span>${sub}</span></div>
+  </div>`;
+}
+
+let kpiHtml = '';
+kpiHtml += mainCard('Carteira em Vigor', K.carteira_qtde, K.carteira_valor, K.carteira_ticket_medio, '', 'Ativos + Inadimplentes');
+kpiHtml += mainCard('Vendas — Maio/26', K.vendas_maio.qtde, K.vendas_maio.valor, K.vendas_maio.ticket_medio, 'blue', null);
+kpiHtml += mainCard('Vendas — Junho/26', K.vendas_junho.qtde, K.vendas_junho.valor, K.vendas_junho.ticket_medio, 'blue', null);
+kpiHtml += mainCard('Vendas — Julho/26 (parcial)', K.vendas_julho.qtde, K.vendas_julho.valor, K.vendas_julho.ticket_medio, 'amber', null);
+
+kpiHtml += miniCard('Variação Maio → Junho', (K.var_maio_junho_pct>=0?'+':'')+pct(K.var_maio_junho_pct), K.var_maio_junho_pct>=0?'green':'red', 'Comparação de totais mensais', K.var_maio_junho_pct>=0?'up':'down');
+kpiHtml += miniCard('Variação Junho → Julho', (K.var_junho_julho_ritmo_pct>=0?'+':'')+pct(K.var_junho_julho_ritmo_pct), K.var_junho_julho_ritmo_pct>=0?'green':'red', 'Ritmo diário (Julho é parcial)', K.var_junho_julho_ritmo_pct>=0?'up':'down');
+kpiHtml += miniCard('Inadimplência', num(K.inadimplentes_qtde) + ' placas', 'red', pct(K.pct_inadimplencia) + ' da base total');
+kpiHtml += miniCard('Taxa de Perda', pct(K.pct_perda), 'amber', num(K.cancelados_qtde+K.inativos_qtde) + ' canceladas/inativas');
+
+kpiGrid.innerHTML = kpiHtml;
+
+/* ---------------- DAILY CHART ---------------- */
+Chart.defaults.font.family = "'Inter',sans-serif";
+Chart.defaults.color = '#66738C';
+
+const D = DATA.daily;
+const maSeries = { 7: D.ma7, 15: D.ma15, 30: D.ma30 };
+let dailyChart;
+
+function fmtShortDate(iso){
+  const d = new Date(iso+'T00:00:00');
+  return d.toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'});
+}
+
+// indices (posicoes) dos dias uteis, na ordem cronologica
+const businessIdx = D.is_weekday.map((w,i)=>w?i:null).filter(i=>i!==null);
+
+function renderCallout(window){
+  const w = parseInt(window);
+  const lastIdx = businessIdx.slice(businessIdx.length - w);
+  const prevIdx = businessIdx.slice(Math.max(0, businessIdx.length - 2*w), businessIdx.length - w);
+  const el = document.getElementById('ma-callout');
+  if(prevIdx.length < w){
+    el.className = 'callout';
+    el.innerHTML = `<span>Dados insuficientes para comparar os últimos ${w} dias úteis com o período anterior.</span>`;
+    return;
+  }
+  const lastSum = lastIdx.reduce((a,i)=>a+D.qtde[i],0);
+  const prevSum = prevIdx.reduce((a,i)=>a+D.qtde[i],0);
+  const variation = prevSum>0 ? (lastSum-prevSum)/prevSum : null;
+  if(variation===null){
+    el.className = 'callout';
+    el.innerHTML = `<span>Sem base de comparação (período anterior sem vendas).</span>`;
+    return;
+  }
+  const positivo = variation >= 0;
+  el.className = 'callout ' + (positivo?'up':'down');
+  const seta = positivo ? '▲' : '▼';
+  const rotulo = positivo ? 'TENDÊNCIA POSITIVA' : 'TENDÊNCIA NEGATIVA';
+  el.innerHTML = `<span>${seta} <b style="font-size:15px;">${rotulo}:</b> últimos ${w} dias úteis (${num(lastSum)} vendas) vs. ${w} dias úteis anteriores (${num(prevSum)} vendas):</span>
+    <b>${positivo?'+':''}${pct(variation)}</b>`;
+}
+
+function renderDailyChart(window){
+  const ma = maSeries[window];
+  const labels = D.dates.map(fmtShortDate);
+  if(dailyChart) dailyChart.destroy();
+  dailyChart = new Chart(document.getElementById('chart-daily'), {
+    data:{
+      labels: labels,
+      datasets:[
+        { type:'bar', label:'Vendas do dia', data:D.qtde, backgroundColor:'#B9C7E0', borderRadius:2, order:2 },
+        { type:'line', label:`Média móvel ${window}d (dias úteis)`, data:ma, borderColor:'#1F3864', backgroundColor:'#1F3864',
+          borderWidth:2.5, pointRadius:0, tension:.3, order:1 }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{position:'top', align:'end', labels:{boxWidth:12, usePointStyle:true}} },
+      scales:{
+        x:{ grid:{display:false}, ticks:{maxTicksLimit:16, font:{size:10.5}} },
+        y:{ grid:{color:'#EEF1F6'}, title:{display:true, text:'Vendas por dia'} }
+      }
+    }
+  });
+  renderCallout(window);
+}
+renderDailyChart(7);
+document.getElementById('ma-window').addEventListener('change', e => renderDailyChart(e.target.value));
+
+/* ---------------- TABLE ---------------- */
+let currentTab = 'unidade';
+let sortKey = 'ativos';
+let sortDir = -1;
+
+const colsBase = [
+  {key:'vendas_maio', label:'Vendas Maio', fmt:num},
+  {key:'vendas_junho', label:'Vendas Junho', fmt:num},
+  {key:'vendas_julho', label:'Vendas Julho', fmt:num},
+  {key:'ativos', label:'Ativos', fmt:num},
+  {key:'inadimplentes', label:'Inadimplentes', fmt:num},
+  {key:'cancelados', label:'Cancelados', fmt:num},
+  {key:'inativos', label:'Inativos', fmt:num},
+  {key:'total', label:'Total (Ativo+Inad.)', fmt:num},
+  {key:'valor_total', label:'Valor (Ativo+Inad.)', fmt:brl},
+  {key:'pct_inadimplencia', label:'% Inadimpl.', fmt:pct, badge:true},
+  {key:'pct_perda', label:'% Perda', fmt:pct, badge:true},
+];
+const colsUnidade = [{key:'nome', label:'Unidade'}, ...colsBase];
+const colsRep = [{key:'nome', label:'Representante'}, {key:'unidade', label:'Unidade'}, ...colsBase];
+
+function currentCols(){ return currentTab==='unidade' ? colsUnidade : colsRep; }
+function badgeClass(v){ if(v>=0.15) return 'r'; if(v>=0.07) return 'a'; return 'g'; }
+
+function renderHead(){
+  const cols = currentCols();
+  const head = document.getElementById('table-head');
+  head.innerHTML = cols.map(c => {
+    const arrow = sortKey===c.key ? (sortDir===1?'▲':'▼') : '';
+    return `<th data-key="${c.key}">${c.label}<span class="sort-arrow">${arrow}</span></th>`;
+  }).join('');
+  head.querySelectorAll('th').forEach(th => th.addEventListener('click', () => {
+    const key = th.dataset.key;
+    if(sortKey===key){ sortDir *= -1; } else { sortKey = key; sortDir = key==='nome'||key==='unidade'?1:-1; }
+    renderBody(); renderHead();
+  }));
+}
+
+function renderBody(){
+  const cols = currentCols();
+  const q = document.getElementById('search-box').value.trim().toLowerCase();
+  let rows = DATA[currentTab].filter(r => r.nome.toLowerCase().includes(q) || (r.unidade||'').toLowerCase().includes(q));
+  rows = rows.slice().sort((a,b) => {
+    let av=a[sortKey], bv=b[sortKey];
+    if(typeof av === 'string') return sortDir*av.localeCompare(bv, 'pt-BR');
+    return sortDir*(av-bv);
+  });
+  document.getElementById('table-body').innerHTML = rows.map(r => `
+    <tr>${cols.map(c => {
+      const v = r[c.key];
+      const disp = c.fmt ? c.fmt(v) : v;
+      if(c.badge) return `<td><span class="badge ${badgeClass(v)}">${disp}</span></td>`;
+      return `<td>${disp}</td>`;
+    }).join('')}</tr>`).join('');
+}
+
+document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => {
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  currentTab = btn.dataset.tab;
+  sortKey = 'ativos'; sortDir = -1;
+  renderHead(); renderBody();
+}));
+document.getElementById('search-box').addEventListener('input', renderBody);
+
+renderHead();
+renderBody();
+</script>
+
+<script>
+const PASS_HASH = "0e5dd0a73da78b69cd3a0d08834a14dd7fa001743794bf6f8eab6dbcd2fdc1cc";
+
+function sha256(ascii){function rr(v,a){return (v>>>a)|(v<<(32-a));}var mathPow=Math.pow,maxWord=mathPow(2,32),result='',words=[],asciiBitLength=ascii.length*8;var hash=sha256.h=sha256.h||[],k=sha256.k=sha256.k||[],primeCounter=k.length,isComposite={};for(var candidate=2;primeCounter<64;candidate++){if(!isComposite[candidate]){for(var i=0;i<313;i+=candidate){isComposite[i]=candidate;}hash[primeCounter]=(mathPow(candidate,.5)*maxWord)|0;k[primeCounter++]=(mathPow(candidate,1/3)*maxWord)|0;}}ascii+='\x80';while(ascii.length%64-56)ascii+='\x00';for(i=0;i<ascii.length;i++){var j=ascii.charCodeAt(i);if(j>>8)return;words[i>>2]|=j<<((3-i)%4)*8;}words[words.length]=((asciiBitLength/maxWord)|0);words[words.length]=(asciiBitLength);for(j=0;j<words.length;){var w=words.slice(j,j+=16),oldHash=hash;hash=hash.slice(0,8);for(i=0;i<64;i++){var w15=w[i-15],w2=w[i-2];var a=hash[0],e=hash[4];var temp1=hash[7]+(rr(e,6)^rr(e,11)^rr(e,25))+((e&hash[5])^((~e)&hash[6]))+k[i]+(w[i]=(i<16)?w[i]:(w[i-16]+(rr(w15,7)^rr(w15,18)^(w15>>>3))+w[i-7]+(rr(w2,17)^rr(w2,19)^(w2>>>10)))|0);var temp2=(rr(a,2)^rr(a,13)^rr(a,22))+((a&hash[1])^(a&hash[2])^(hash[1]&hash[2]));hash=[(temp1+temp2)|0].concat(hash);hash[4]=(hash[4]+temp1)|0;}for(i=0;i<8;i++){hash[i]=(hash[i]+oldHash[i])|0;}}for(i=0;i<8;i++){for(j=3;j+1;j--){var b=(hash[i]>>(j*8))&255;result+=((b<16)?0:'')+b.toString(16);}}return result;}
+
+async function tryUnlock(){
+  const val = document.getElementById('lock-pass').value;
+  const hash = sha256(val);
+  if(hash === PASS_HASH){
+    sessionStorage.setItem('rodar_unlocked','1');
+    document.getElementById('lock-screen').style.display = 'none';
+    document.getElementById('app-content').style.display = 'block';
+  } else {
+    document.getElementById('lock-error').textContent = 'Senha incorreta. Tente novamente.';
+  }
+}
+
+document.getElementById('lock-btn').addEventListener('click', tryUnlock);
+document.getElementById('lock-pass').addEventListener('keydown', e => { if(e.key==='Enter') tryUnlock(); });
+
+if(sessionStorage.getItem('rodar_unlocked')==='1'){
+  document.getElementById('lock-screen').style.display = 'none';
+  document.getElementById('app-content').style.display = 'block';
+}
+</script>
+</body>
+</html>

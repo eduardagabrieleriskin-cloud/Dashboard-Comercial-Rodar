@@ -1,3 +1,5 @@
 .rodou_*.txt
 .ultimo_processado.txt
+.ultimo_base.txt
 atualizar.log
+staging_index.html

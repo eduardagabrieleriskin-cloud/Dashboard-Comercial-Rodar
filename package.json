@@ -1,0 +1,24 @@
+{
+  "name": "dashboard-comercial-rodar",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eduardagabrieleriskin-cloud/Dashboard-Comercial-Rodar.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/eduardagabrieleriskin-cloud/Dashboard-Comercial-Rodar/issues"
+  },
+  "homepage": "https://github.com/eduardagabrieleriskin-cloud/Dashboard-Comercial-Rodar#readme",
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  }
+}
