@@ -188,6 +188,29 @@
     </div>
   </section>
 
+  <section>
+    <div class="section-head">
+      <div><h2>Cotações e Taxa de Conversão por Consultor</h2><p>Quantidade de cotações (placas) por mês e % de conversão (cotações que viraram placa ativa/inadimplente ÷ total cotado), por consultor.</p></div>
+    </div>
+    <div class="card">
+      <div class="callout" id="conv-callout"></div>
+      <div class="table-controls">
+        <input class="search-input" id="conv-search-box" placeholder="Buscar consultor...">
+      </div>
+      <div class="table-scroll">
+        <table id="conv-table">
+          <thead><tr id="conv-table-head"></tr></thead>
+          <tbody id="conv-table-body"></tbody>
+        </table>
+      </div>
+      <div class="warn-note">
+        <b>Metodologia da conversão:</b> fechamento = a placa cotada consta como <b>Ativa ou Inadimplente</b> na base mais recente
+        (cruzamento feito pela placa do veículo, não pelo nome do consultor — evita distorções de conversão acima de 100%).
+        Fonte das cotações: Controle de Subscrição V2 (PPM). Período: maio a julho (parcial).
+      </div>
+    </div>
+  </section>
+
   <footer>
     <b>Metodologia:</b> Vendas = registros com data de adesão dentro do mês. Maio: BASE_Dados_Maio26 (congelado, não afetado pelas
     novas planilhas). Junho e Julho: BASE atualizada em 19/07/2026 — Julho está parcial (dados de 01 a 16/07).<br>
@@ -208,9 +231,11 @@
 </div>
 
 <script id="dashboard-data" type="application/json">__DATA__</script>
+<script id="conversao-data" type="application/json">__CONVERSAO__</script>
 <script>
 const DATA = JSON.parse(document.getElementById('dashboard-data').textContent);
 const K = DATA.kpis;
+const CONV = JSON.parse(document.getElementById('conversao-data').textContent);
 
 document.getElementById('gen-date').textContent = DATA.meta.gerado_em;
 function fmtDateBR(iso){ const [y,m,d]=iso.split('-'); return d+'/'+m+'/'+y; }
@@ -389,6 +414,56 @@ document.getElementById('search-box').addEventListener('input', renderBody);
 
 renderHead();
 renderBody();
+
+/* ---------------- COTAÇÕES / CONVERSÃO POR CONSULTOR ---------------- */
+const MLBL = {'2026-05':'Maio','2026-06':'Junho','2026-07':'Julho'};
+let convSortKey = 'total_cotado', convSortDir = -1;
+const convCols = [
+  {key:'nome', label:'Consultor'},
+  {key:'unidade', label:'Unidade'},
+  ...CONV.meses.map(m => ({key:'cot_'+m, label:'Cot. '+MLBL[m], fmt:num})),
+  {key:'total_cotado', label:'Total Cotado', fmt:num},
+  {key:'total_fechado', label:'Total Fechado', fmt:num},
+  {key:'conversao', label:'% Conversão', fmt:pct, badgeConv:true},
+];
+function badgeConvClass(v){ if(v>=0.7) return 'g'; if(v>=0.4) return 'a'; return 'r'; }
+function renderConvCallout(){
+  const t = CONV.totais;
+  document.getElementById('conv-callout').innerHTML =
+    `<span>Conversão geral (mai–jul): <b style="font-size:16px;">${num(t.total_fechado)} / ${num(t.total_cotado)}</b> cotações viraram placa ativa</span> <b>${pct(t.conversao)}</b>`;
+}
+function renderConvHead(){
+  const head = document.getElementById('conv-table-head');
+  head.innerHTML = convCols.map(c => {
+    const arrow = convSortKey===c.key ? (convSortDir===1?'▲':'▼') : '';
+    return `<th data-key="${c.key}">${c.label}<span class="sort-arrow">${arrow}</span></th>`;
+  }).join('');
+  head.querySelectorAll('th').forEach(th => th.addEventListener('click', () => {
+    const key = th.dataset.key;
+    if(convSortKey===key){ convSortDir *= -1; } else { convSortKey = key; convSortDir = (key==='nome'||key==='unidade')?1:-1; }
+    renderConvBody(); renderConvHead();
+  }));
+}
+function renderConvBody(){
+  const q = document.getElementById('conv-search-box').value.trim().toLowerCase();
+  let rows = CONV.consultores.filter(r => r.nome.toLowerCase().includes(q) || (r.unidade||'').toLowerCase().includes(q));
+  rows = rows.slice().sort((a,b) => {
+    let av=a[convSortKey], bv=b[convSortKey];
+    if(typeof av === 'string') return convSortDir*av.localeCompare(bv, 'pt-BR');
+    return convSortDir*(av-bv);
+  });
+  document.getElementById('conv-table-body').innerHTML = rows.map(r => `
+    <tr>${convCols.map(c => {
+      const v = r[c.key];
+      const disp = c.fmt ? c.fmt(v) : v;
+      if(c.badgeConv) return `<td><span class="badge ${badgeConvClass(v)}">${disp}</span></td>`;
+      return `<td>${disp}</td>`;
+    }).join('')}</tr>`).join('');
+}
+document.getElementById('conv-search-box').addEventListener('input', renderConvBody);
+renderConvCallout();
+renderConvHead();
+renderConvBody();
 </script>
 
 <script>
