@@ -171,28 +171,6 @@
 
   <section>
     <div class="section-head">
-      <div><h2>Detalhamento — Unidade e Representante</h2><p>Vendas, estoque, inadimplência e perda. Ordenado por Ativos (maior para o menor). Clique nos cabeçalhos para reordenar.</p></div>
-    </div>
-    <div class="card">
-      <div class="table-controls">
-        <div class="tabs">
-          <button class="tab-btn active" data-tab="unidade">Por Unidade</button>
-          <button class="tab-btn" data-tab="representante">Por Representante</button>
-        </div>
-        <input class="search-input" id="search-box" placeholder="Buscar...">
-        <button class="toggle-btn" id="vendas-detalhe-toggle" type="button">Ver Maio + Junho + Julho separado</button>
-      </div>
-      <div class="table-scroll">
-        <table id="data-table">
-          <thead><tr id="table-head"></tr></thead>
-          <tbody id="table-body"></tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <section>
-    <div class="section-head">
       <div><h2>Cotações e Taxa de Conversão por Consultor</h2><p>Quantidade de cotações (placas) por mês e % de conversão (cotações que viraram placa ativa/inadimplente ÷ total cotado), por consultor.</p></div>
     </div>
     <div class="card">
@@ -211,6 +189,28 @@
         <b>Metodologia da conversão:</b> fechamento = a placa cotada consta como <b>Ativa ou Inadimplente</b> na base mais recente
         (cruzamento feito pela placa do veículo, não pelo nome do consultor — evita distorções de conversão acima de 100%).
         Fonte das cotações: Controle de Subscrição V2 (PPM). Período: maio a julho (parcial).
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <div><h2>Detalhamento — Unidade e Representante</h2><p>Vendas, estoque, inadimplência e perda. Ordenado por Ativos (maior para o menor). Clique nos cabeçalhos para reordenar.</p></div>
+    </div>
+    <div class="card">
+      <div class="table-controls">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="unidade">Por Unidade</button>
+          <button class="tab-btn" data-tab="representante">Por Representante</button>
+        </div>
+        <input class="search-input" id="search-box" placeholder="Buscar...">
+        <button class="toggle-btn" id="vendas-detalhe-toggle" type="button">Ver Maio + Junho + Julho separado</button>
+      </div>
+      <div class="table-scroll">
+        <table id="data-table">
+          <thead><tr id="table-head"></tr></thead>
+          <tbody id="table-body"></tbody>
+        </table>
       </div>
     </div>
   </section>
