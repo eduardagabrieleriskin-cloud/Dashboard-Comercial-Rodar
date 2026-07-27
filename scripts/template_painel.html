@@ -73,18 +73,19 @@
   table{width:100%; min-width:900px; border-collapse:collapse; font-size:13px; table-layout:fixed;}
   thead th{ text-align:right; padding:10px 10px; background:var(--navy); color:#fff; font-weight:600; font-size:11.5px;
     letter-spacing:.03em; text-transform:uppercase; cursor:pointer; user-select:none; white-space:normal; line-height:1.3; vertical-align:bottom; width:98px; }
-  thead th:first-child{text-align:left; width:190px;}
-  thead th:nth-child(2){text-align:left; width:150px;}
+  thead th[data-key="nome"]{text-align:left; width:190px;}
+  thead th[data-key="unidade"]{text-align:left; width:150px;}
   thead th:hover{background:var(--blue);}
   tbody td{padding:9px 10px; text-align:right; border-bottom:1px solid var(--line); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   tbody td:first-child, tbody td:nth-child(2){text-align:left; font-weight:600;}
-  thead th:first-child, tbody td:first-child{
+  thead th[data-key="nome"], tbody td:first-child{
     position:sticky; left:0; background:var(--card); z-index:2; box-shadow:2px 0 4px rgba(20,35,70,.06);
   }
-  thead th:first-child{background:var(--navy); z-index:3;}
+  thead th[data-key="nome"]{background:var(--navy); z-index:3;}
   tbody tr:hover td:first-child{background:#F5F8FD;}
   tbody tr:hover{background:#F5F8FD;}
-  .badge{display:inline-block; padding:3px 9px; border-radius:20px; font-size:12px; font-weight:600;}
+  thead tr:first-child th{background:var(--navy-deep); font-size:11px;}
+  .badge{display:inline-block; padding:5px 10px; border-radius:14px; font-size:12px; font-weight:600;}
   .badge.g{background:var(--green-soft); color:var(--green);} .badge.a{background:var(--amber-soft); color:var(--amber);} .badge.r{background:var(--red-soft); color:var(--red);}
   .table-scroll{overflow-x:auto; border-radius:10px; border:1px solid var(--line);}
   .sort-arrow{opacity:.5; font-size:10px; margin-left:3px;}
@@ -180,7 +181,7 @@
       </div>
       <div class="table-scroll">
         <table id="conv-table">
-          <thead><tr id="conv-table-head"></tr></thead>
+          <thead><tr id="conv-table-head-group"></tr><tr id="conv-table-head"></tr></thead>
           <tbody id="conv-table-body"></tbody>
         </table>
       </div>
@@ -210,7 +211,7 @@
       </div>
       <div class="table-scroll">
         <table id="data-table">
-          <thead><tr id="table-head"></tr></thead>
+          <thead><tr id="table-head-group"></tr><tr id="table-head"></tr></thead>
           <tbody id="table-body"></tbody>
         </table>
       </div>
@@ -370,43 +371,61 @@ let sortKey = 'ativos';
 let sortDir = -1;
 
 let vendasDetalheMensal = false;
-function duoVendas(placaVal, clienteVal){ return num(placaVal) + ' / ' + num(clienteVal); }
-function getColsBase(){
+function getVendasBase(){
   return [
     ...(vendasDetalheMensal ? [
-      {key:'vendas_maio', keyCliente:'vendas_maio_cliente', label:'Vendas Maio', duo:true},
-      {key:'vendas_junho', keyCliente:'vendas_junho_cliente', label:'Vendas Junho', duo:true},
-      {key:'vendas_julho', keyCliente:'vendas_julho_cliente', label:'Vendas Julho', duo:true},
+      {key:'vendas_maio', keyCliente:'vendas_maio_cliente', group:'Vendas Maio'},
+      {key:'vendas_junho', keyCliente:'vendas_junho_cliente', group:'Vendas Junho'},
+      {key:'vendas_julho', keyCliente:'vendas_julho_cliente', group:'Vendas Julho'},
     ] : [
-      {key:'vendas_total_periodo', keyCliente:'vendas_total_periodo_cliente', label:'Vendas Mai+Jun+Jul', duo:true},
+      {key:'vendas_total_periodo', keyCliente:'vendas_total_periodo_cliente', group:'Vendas Mai+Jun+Jul'},
     ]),
-    {key:'ativos', label:'Ativos', fmt:num},
-    {key:'inadimplentes', label:'Inadimplentes', fmt:num},
-    {key:'cancelados', label:'Cancelados', fmt:num},
-    {key:'inativos', label:'Inativos', fmt:num},
-    {key:'total', label:'Total (Ativo+Inad.)', fmt:num},
-    {key:'valor_total', label:'Valor (Ativo+Inad.)', fmt:brl},
-    {key:'pct_inadimplencia', label:'% Inadimpl.', fmt:pct, badge:true},
-    {key:'pct_perda', label:'% Perda', fmt:pct, badge:true},
+    {key:'ativos', label:'Ativos', fmt:num, rowspan:true},
+    {key:'inadimplentes', label:'Inadimplentes', fmt:num, rowspan:true},
+    {key:'cancelados', label:'Cancelados', fmt:num, rowspan:true},
+    {key:'inativos', label:'Inativos', fmt:num, rowspan:true},
+    {key:'total', label:'Total (Ativo+Inad.)', fmt:num, rowspan:true},
+    {key:'valor_total', label:'Valor (Ativo+Inad.)', fmt:brl, rowspan:true},
+    {key:'pct_inadimplencia', label:'% Inadimpl.', fmt:pct, badge:true, rowspan:true},
+    {key:'pct_perda', label:'% Perda', fmt:pct, badge:true, rowspan:true},
   ];
 }
-
-function currentCols(){
-  const base = getColsBase();
-  return currentTab==='unidade'
-    ? [{key:'nome', label:'Unidade'}, ...base]
-    : [{key:'nome', label:'Representante'}, {key:'unidade', label:'Unidade'}, ...base];
+// expande cada coluna "group" (vendas) em duas colunas reais: Placa e Cliente
+function currentLeaves(){
+  const base = getVendasBase();
+  const nomeCols = currentTab==='unidade'
+    ? [{key:'nome', label:'Unidade', rowspan:true}]
+    : [{key:'nome', label:'Representante', rowspan:true}, {key:'unidade', label:'Unidade', rowspan:true}];
+  const leaves = [...nomeCols];
+  base.forEach(c => {
+    if(c.group){
+      leaves.push({key:c.key, label:'Placa', group:c.group, fmt:num});
+      leaves.push({key:c.keyCliente, label:'Cliente', group:c.group, fmt:num});
+    } else leaves.push(c);
+  });
+  return leaves;
 }
 function badgeClass(v){ if(v>=0.15) return 'r'; if(v>=0.07) return 'a'; return 'g'; }
 
 function renderHead(){
-  const cols = currentCols();
-  const head = document.getElementById('table-head');
-  head.innerHTML = cols.map(c => {
-    const arrow = sortKey===c.key ? (sortDir===1?'▲':'▼') : '';
-    return `<th data-key="${c.key}">${c.label}<span class="sort-arrow">${arrow}</span></th>`;
-  }).join('');
-  head.querySelectorAll('th').forEach(th => th.addEventListener('click', () => {
+  const leaves = currentLeaves();
+  const rowGroup = document.getElementById('table-head-group');
+  const rowLeaf = document.getElementById('table-head');
+  let groupHtml = '', leafHtml = '', i = 0;
+  while(i < leaves.length){
+    const c = leaves[i];
+    if(c.rowspan){ groupHtml += `<th rowspan="2" data-key="${c.key}">${c.label}<span class="sort-arrow"></span></th>`; i++; continue; }
+    let n = 1; while(i+n < leaves.length && leaves[i+n].group === c.group) n++;
+    groupHtml += `<th colspan="${n}">${c.group}</th>`;
+    for(let j=0;j<n;j++){ const lc = leaves[i+j];
+      const arrow = sortKey===lc.key ? (sortDir===1?'▲':'▼') : '';
+      leafHtml += `<th data-key="${lc.key}">${lc.label}<span class="sort-arrow">${arrow}</span></th>`;
+    }
+    i += n;
+  }
+  rowGroup.innerHTML = groupHtml;
+  rowLeaf.innerHTML = leafHtml;
+  [...rowGroup.querySelectorAll('th[data-key]'), ...rowLeaf.querySelectorAll('th[data-key]')].forEach(th => th.addEventListener('click', () => {
     const key = th.dataset.key;
     if(sortKey===key){ sortDir *= -1; } else { sortKey = key; sortDir = key==='nome'||key==='unidade'?1:-1; }
     renderBody(); renderHead();
@@ -414,7 +433,7 @@ function renderHead(){
 }
 
 function renderBody(){
-  const cols = currentCols();
+  const cols = currentLeaves();
   const q = document.getElementById('search-box').value.trim().toLowerCase();
   let rows = DATA[currentTab].filter(r => r.nome.toLowerCase().includes(q) || (r.unidade||'').toLowerCase().includes(q));
   rows = rows.slice().sort((a,b) => {
@@ -424,7 +443,7 @@ function renderBody(){
   });
   document.getElementById('table-body').innerHTML = rows.map(r => `
     <tr>${cols.map(c => {
-      if(c.duo) return `<td>${duoVendas(r[c.key], r[c.keyCliente])}</td>`;
+      if(c.rowspan && !c.fmt) return `<td>${r[c.key]}</td>`;
       const v = r[c.key];
       const disp = c.fmt ? c.fmt(v) : v;
       if(c.badge) return `<td><span class="badge ${badgeClass(v)}">${disp}</span></td>`;
@@ -453,19 +472,24 @@ renderBody();
 /* ---------------- COTAÇÕES / CONVERSÃO POR CONSULTOR ---------------- */
 const MLBL = {'2026-05':'Maio','2026-06':'Junho','2026-07':'Julho'};
 let convSortKey = 'total_cotado', convSortDir = -1;
-// cada coluna mostra "Placa / Cliente" juntos na mesma célula — sem toggle
-function duo(placaVal, clienteVal, fmt){ return fmt(placaVal) + ' / ' + fmt(clienteVal); }
-function getConvCols(){
-  const cols = [{key:'nome', label:'Consultor'}, {key:'unidade', label:'Unidade'}];
+// Placa e Cliente viram colunas de verdade, agrupadas por um cabeçalho comum (a palavra aparece só no título, 1x)
+function getConvLeaves(){
+  const leaves = [{key:'nome', label:'Consultor', rowspan:true}, {key:'unidade', label:'Unidade', rowspan:true}];
   CONV.meses.forEach(m => {
-    cols.push({key:'cot_'+m, keyCliente:'cot_cliente_'+m, label:MLBL[m]+' · Cotado', fmt:num, duo:true});
-    cols.push({key:'fech_'+m, keyCliente:'fech_cliente_'+m, label:MLBL[m]+' · Fechado', fmt:num, duo:true});
-    cols.push({key:'conv_'+m, keyCliente:'conv_cliente_'+m, label:MLBL[m]+' · % Conv.', fmt:pctConv, duo:true, badgeConv:true});
+    leaves.push({key:'cot_'+m, label:'Placa', group:MLBL[m]+' · Cotado', fmt:num});
+    leaves.push({key:'cot_cliente_'+m, label:'Cliente', group:MLBL[m]+' · Cotado', fmt:num});
+    leaves.push({key:'fech_'+m, label:'Placa', group:MLBL[m]+' · Fechado', fmt:num});
+    leaves.push({key:'fech_cliente_'+m, label:'Cliente', group:MLBL[m]+' · Fechado', fmt:num});
+    leaves.push({key:'conv_'+m, label:'Placa', group:MLBL[m]+' · % Conv.', fmt:pctConv, badgeConv:true});
+    leaves.push({key:'conv_cliente_'+m, label:'Cliente', group:MLBL[m]+' · % Conv.', fmt:pctConv, badgeConv:true});
   });
-  cols.push({key:'total_cotado', keyCliente:'total_cotado_cliente', label:'Total Cotado', fmt:num, duo:true});
-  cols.push({key:'total_fechado', keyCliente:'total_fechado_cliente', label:'Total Fechado', fmt:num, duo:true});
-  cols.push({key:'conversao', keyCliente:'conversao_cliente', label:'% Conv. Total', fmt:pctConv, duo:true, badgeConv:true});
-  return cols;
+  leaves.push({key:'total_cotado', label:'Placa', group:'Total Cotado', fmt:num});
+  leaves.push({key:'total_cotado_cliente', label:'Cliente', group:'Total Cotado', fmt:num});
+  leaves.push({key:'total_fechado', label:'Placa', group:'Total Fechado', fmt:num});
+  leaves.push({key:'total_fechado_cliente', label:'Cliente', group:'Total Fechado', fmt:num});
+  leaves.push({key:'conversao', label:'Placa', group:'% Conv. Total', fmt:pctConv, badgeConv:true});
+  leaves.push({key:'conversao_cliente', label:'Cliente', group:'% Conv. Total', fmt:pctConv, badgeConv:true});
+  return leaves;
 }
 function pctConv(v){ return v===null||v===undefined ? '—' : pct(v); }
 function badgeConvClass(v){ if(v===null||v===undefined) return ''; if(v>=0.7) return 'g'; if(v>=0.4) return 'a'; return 'r'; }
@@ -477,19 +501,31 @@ function renderConvCallout(){
     + ` &nbsp;·&nbsp; Cliente: <b style="font-size:16px;">${num(t.total_fechado_cliente)} / ${num(t.total_cotado_cliente)}</b> = <b>${pct(t.conversao_cliente)}</b></span>${semCot}`;
 }
 function renderConvHead(){
-  const head = document.getElementById('conv-table-head');
-  head.innerHTML = getConvCols().map(c => {
-    const arrow = convSortKey===c.key ? (convSortDir===1?'▲':'▼') : '';
-    return `<th data-key="${c.key}">${c.label}<span class="sort-arrow">${arrow}</span></th>`;
-  }).join('');
-  head.querySelectorAll('th').forEach(th => th.addEventListener('click', () => {
+  const leaves = getConvLeaves();
+  const rowGroup = document.getElementById('conv-table-head-group');
+  const rowLeaf = document.getElementById('conv-table-head');
+  let groupHtml = '', leafHtml = '', i = 0;
+  while(i < leaves.length){
+    const c = leaves[i];
+    if(c.rowspan){ groupHtml += `<th rowspan="2" data-key="${c.key}">${c.label}<span class="sort-arrow"></span></th>`; i++; continue; }
+    let n = 1; while(i+n < leaves.length && leaves[i+n].group === c.group) n++;
+    groupHtml += `<th colspan="${n}">${c.group}</th>`;
+    for(let j=0;j<n;j++){ const lc = leaves[i+j];
+      const arrow = convSortKey===lc.key ? (convSortDir===1?'▲':'▼') : '';
+      leafHtml += `<th data-key="${lc.key}">${lc.label}<span class="sort-arrow">${arrow}</span></th>`;
+    }
+    i += n;
+  }
+  rowGroup.innerHTML = groupHtml;
+  rowLeaf.innerHTML = leafHtml;
+  [...rowGroup.querySelectorAll('th[data-key]'), ...rowLeaf.querySelectorAll('th[data-key]')].forEach(th => th.addEventListener('click', () => {
     const key = th.dataset.key;
     if(convSortKey===key){ convSortDir *= -1; } else { convSortKey = key; convSortDir = (key==='nome'||key==='unidade')?1:-1; }
     renderConvBody(); renderConvHead();
   }));
 }
 function renderConvBody(){
-  const cols = getConvCols();
+  const cols = getConvLeaves();
   const q = document.getElementById('conv-search-box').value.trim().toLowerCase();
   let rows = CONV.consultores.filter(r => r.nome.toLowerCase().includes(q) || (r.unidade||'').toLowerCase().includes(q));
   rows = rows.slice().sort((a,b) => {
@@ -499,12 +535,10 @@ function renderConvBody(){
   });
   document.getElementById('conv-table-body').innerHTML = rows.map(r => `
     <tr>${cols.map(c => {
-      if(c.duo){
-        const disp = duo(r[c.key], r[c.keyCliente], c.fmt);
-        if(c.badgeConv) return `<td><span class="badge ${badgeConvClass(r[c.key])}">${disp}</span></td>`;
-        return `<td>${disp}</td>`;
-      }
-      return `<td>${c.fmt ? c.fmt(r[c.key]) : r[c.key]}</td>`;
+      if(c.rowspan) return `<td>${r[c.key]}</td>`;
+      const disp = c.fmt(r[c.key]);
+      if(c.badgeConv) return `<td><span class="badge ${badgeConvClass(r[c.key])}">${disp}</span></td>`;
+      return `<td>${disp}</td>`;
     }).join('')}</tr>`).join('');
 }
 document.getElementById('conv-search-box').addEventListener('input', renderConvBody);
