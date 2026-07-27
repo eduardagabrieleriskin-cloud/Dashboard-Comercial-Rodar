@@ -2,7 +2,11 @@
  * Calcula cotações mensais por consultor e a taxa de conversão por consultor.
  *
  * Fontes:
- *  - Controle de Subscrição V2 (PPM/AMSS): cada linha = 1 placa cotada, com Representante, Franquia, Data e Status
+ *  - Controle de Cotações V2 (PPM/AMSS): o relatório real do funil de cotação —
+ *    cada linha = 1 placa cotada, com Representante, Franquia, Data e Status.
+ *    (NÃO usar o Controle de Subscrição aqui: é uma etapa mais avançada do funil
+ *    e conta duplicado — confirmado com a Daiane em junho: Subscrição dava 78,
+ *    Cotações V2 dá 40, que é o número certo, batendo com o PPM.)
  *  - BASE do Siprov: define o FECHAMENTO (placa com situação Ativo/Inadimplente)
  *  - representantesBase: array já canonicalizado (nome + unidade) vindo do transformador_base,
  *    para que TODO consultor da carteira apareça nesta tabela — mesmo sem cotação casada.
@@ -16,11 +20,11 @@
  * Cruzamento cotação->fechamento por PLACA (não por nome) — garante que a
  * conversão nunca passe de 100%.
  *
- * Uso: build(subscricaoXlsx, baseXlsx, ateISO, representantesBase) -> { consultores, totais, meses }
+ * Uso: build(cotacoesXlsx, baseXlsx, ateISO, representantesBase) -> { consultores, totais, meses }
  */
 const XLSX = require('xlsx');
 
-const S = { cotacao: 0, placa: 7, data: 16, franquia: 24, representante: 26, status: 28 };
+const S = { codigo: 0, placa: 3, data: 4, franquia: 6, representante: 7, status: 8 };
 const B = { situacao: 16, placa: 26 };
 const MESES = ['2026-05', '2026-06', '2026-07'];
 
@@ -39,8 +43,13 @@ function scoreNomes(cotName, baseName) {
   return s;
 }
 function iso(s) { if (!s) return null; const m = String(s).match(/(\d{2})\/(\d{2})\/(\d{4})/); return m ? m[3] + '-' + m[2] + '-' + m[1] : null; }
+// "Conjunto" pode ter mais de uma placa numa célula só (ex: "NED5C33 JBK1F44") — considera fechada se QUALQUER placa da cotação estiver ativa/inadimplente
+function algumaPlacaFechada(celula, fechadas) {
+  const placas = (celula || '').toString().split(/[\s,/]+/).map(np).filter(p => p.length >= 6);
+  return placas.some(p => fechadas.has(p));
+}
 
-module.exports = function build(subscricaoXlsx, baseXlsx, ateISO, representantesBase) {
+module.exports = function build(cotacoesXlsx, baseXlsx, ateISO, representantesBase) {
   const ate = ateISO || '2026-12-31';
 
   // fechamentos: placas ativas/inadimplentes na BASE
@@ -52,12 +61,12 @@ module.exports = function build(subscricaoXlsx, baseXlsx, ateISO, representantes
     if (p && ['Ativo', 'Inadimplente'].includes((r[B.situacao] || '').trim())) fechadas.add(p);
   }
 
-  // cotações
-  const wbS = XLSX.readFile(subscricaoXlsx);
-  const sub = XLSX.utils.sheet_to_json(wbS.Sheets[wbS.SheetNames[0]], { header: 1, raw: false }).slice(2);
+  // cotações (Controle de Cotações V2 — funil real, não a Subscrição)
+  const wbC = XLSX.readFile(cotacoesXlsx);
+  const cot = XLSX.utils.sheet_to_json(wbC.Sheets[wbC.SheetNames[0]], { header: 1, raw: false }).slice(2);
 
   const nomesBase = representantesBase.map(r => r.nome);
-  const rawNomesCot = [...new Set(sub.map(r => (r[S.representante] || '').trim()).filter(Boolean))];
+  const rawNomesCot = [...new Set(cot.map(r => (r[S.representante] || '').trim()).filter(Boolean))];
 
   // para cada nome bruto do PPM, acha o melhor consultor da BASE (evita atribuição ambígua)
   const destino = {};
@@ -73,7 +82,7 @@ module.exports = function build(subscricaoXlsx, baseXlsx, ateISO, representantes
   const acc = {};
   representantesBase.forEach(r => { acc[r.nome] = { nome: r.nome, unidade: r.unidade, cot: {}, fech: {}, total_cot: 0, total_fech: 0 }; });
 
-  for (const r of sub) {
+  for (const r of cot) {
     const d = iso(r[S.data]);
     if (!d || d > ate) continue;
     const mes = d.slice(0, 7);
@@ -83,7 +92,7 @@ module.exports = function build(subscricaoXlsx, baseXlsx, ateISO, representantes
     const a = acc[nomeBaseAlvo];
     a.cot[mes] = (a.cot[mes] || 0) + 1;
     a.total_cot++;
-    if (fechadas.has(np(r[S.placa]))) { a.fech[mes] = (a.fech[mes] || 0) + 1; a.total_fech++; }
+    if (algumaPlacaFechada(r[S.placa], fechadas)) { a.fech[mes] = (a.fech[mes] || 0) + 1; a.total_fech++; }
   }
 
   const consultores = Object.values(acc).map(a => {

@@ -1,7 +1,9 @@
 /*
  * Atualiza o Painel Comercial Rodar Mutual a partir de:
  *  - BASE_*.xlsx mais recente do Siprov (carteira, vendas, unidades, representantes)
- *  - Controle_de_Subscrição_*.xlsx mais recente do PPM (cotações e conversão por consultor)
+ *  - Controle_de_Cotações_*.xlsx mais recente do PPM (cotações e conversão por consultor —
+ *    é o relatório real do funil de cotação; NÃO usar o Controle de Subscrição aqui,
+ *    que é uma etapa mais avançada e conta duplicado)
  * ambos salvos na pasta Downloads.
  *
  * Fluxo: acha os arquivos mais novos -> transforma (até ONTEM) -> injeta no
@@ -37,14 +39,14 @@ function acharMaisRecente(regex) {
 try {
   const base = acharMaisRecente(/^BASE_\d{8}.*\.xlsx$/i);
   if (!base) { log('nenhum BASE_*.xlsx em Downloads. Nada a fazer.'); process.exit(0); }
-  const subscricao = acharMaisRecente(/^Controle_de_Subscri.*\.xlsx$/i);
+  const cotacoes = acharMaisRecente(/^Controle_de_Cota.*\.xlsx$/i);
 
-  const assinatura = base.f + '|' + Math.round(base.m) + '|' + (subscricao ? subscricao.f + '|' + Math.round(subscricao.m) : 'sem-subscricao');
+  const assinatura = base.f + '|' + Math.round(base.m) + '|' + (cotacoes ? cotacoes.f + '|' + Math.round(cotacoes.m) : 'sem-cotacoes');
   const marca = fs.existsSync(MARKER) ? fs.readFileSync(MARKER, 'utf8').trim() : '';
-  if (marca === assinatura) { log('fontes mais recentes já publicadas (' + base.f + (subscricao ? ' + ' + subscricao.f : '') + '). Nada novo.'); process.exit(0); }
+  if (marca === assinatura) { log('fontes mais recentes já publicadas (' + base.f + (cotacoes ? ' + ' + cotacoes.f : '') + '). Nada novo.'); process.exit(0); }
 
   const ate = isoHoje();
-  log('fonte BASE: ' + base.f + ' | fonte Subscrição: ' + (subscricao ? subscricao.f : '(nenhuma)') + ' | até ' + ate);
+  log('fonte BASE: ' + base.f + ' | fonte Cotações: ' + (cotacoes ? cotacoes.f : '(nenhuma)') + ' | até ' + ate);
 
   const res = buildBase(base.full, ate);
   if (res.diagnostico.consultoresSemUnidade.length)
@@ -52,12 +54,12 @@ try {
   res.data.meta.gerado_em = fmtBR(new Date());
 
   let conversao = { consultores: [], totais: { total_cotado: 0, total_fechado: 0, conversao: 0, por_mes: {}, consultores: 0, sem_cotacao_registrada: 0 }, meses: ['2026-05', '2026-06', '2026-07'] };
-  if (subscricao) {
-    conversao = buildConversao(subscricao.full, base.full, ate, res.data.representante);
+  if (cotacoes) {
+    conversao = buildConversao(cotacoes.full, base.full, ate, res.data.representante);
     log('conversão calculada: ' + conversao.consultores.length + ' consultores (' + conversao.totais.sem_cotacao_registrada + ' sem cotação casada) | '
       + conversao.totais.total_fechado + '/' + conversao.totais.total_cotado + ' (' + (conversao.totais.conversao * 100).toFixed(1) + '%)');
   } else {
-    log('AVISO: sem Controle_de_Subscrição em Downloads — seção de cotações/conversão ficará vazia.');
+    log('AVISO: sem Controle_de_Cotações em Downloads — seção de cotações/conversão ficará vazia.');
   }
 
   let html = fs.readFileSync(TEMPLATE, 'utf8')
@@ -84,7 +86,7 @@ try {
   if (!execSync('git status --porcelain', { cwd: REPO }).toString().trim()) {
     log('sem mudanças para commitar.'); fs.writeFileSync(MARKER, assinatura); process.exit(0);
   }
-  execSync('git commit -m "auto: painel a partir de ' + base.f + (subscricao ? ' + ' + subscricao.f : '') + ' (dados ate ' + ate + ')"', { cwd: REPO });
+  execSync('git commit -m "auto: painel a partir de ' + base.f + (cotacoes ? ' + ' + cotacoes.f : '') + ' (dados ate ' + ate + ')"', { cwd: REPO });
   execSync('git push origin main', { cwd: REPO });
   fs.writeFileSync(MARKER, assinatura);
   log('PUBLICADO com sucesso (GitHub + Vercel via git).');
