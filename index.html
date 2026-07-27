@@ -171,7 +171,6 @@
       <div class="callout" id="conv-callout"></div>
       <div class="table-controls">
         <input class="search-input" id="conv-search-box" placeholder="Buscar consultor...">
-        <button class="toggle-btn" id="conv-detalhe-toggle" type="button">Ver Maio + Junho + Julho separado</button>
       </div>
       <div class="table-scroll">
         <table id="conv-table">
@@ -202,7 +201,6 @@
         </div>
         <input class="search-input" id="search-box" placeholder="Buscar...">
         <button class="toggle-btn" id="vendas-detalhe-toggle" type="button">Ver Maio + Junho + Julho separado</button>
-        <button class="toggle-btn" id="vendas-visao-toggle" type="button">Visão: Placa (clique p/ Cliente)</button>
       </div>
       <div class="table-scroll">
         <table id="data-table">
@@ -366,16 +364,15 @@ let sortKey = 'ativos';
 let sortDir = -1;
 
 let vendasDetalheMensal = false;
-let visaoVendas = 'placa'; // 'placa' | 'cliente'
+function duoVendas(placaVal, clienteVal){ return num(placaVal) + ' / ' + num(clienteVal); }
 function getColsBase(){
-  const suf = visaoVendas==='cliente' ? '_cliente' : '';
   return [
     ...(vendasDetalheMensal ? [
-      {key:'vendas_maio'+suf, label:'Vendas Maio', fmt:num},
-      {key:'vendas_junho'+suf, label:'Vendas Junho', fmt:num},
-      {key:'vendas_julho'+suf, label:'Vendas Julho', fmt:num},
+      {key:'vendas_maio', keyCliente:'vendas_maio_cliente', label:'Vendas Maio (Placa/Cliente)', duo:true},
+      {key:'vendas_junho', keyCliente:'vendas_junho_cliente', label:'Vendas Junho (Placa/Cliente)', duo:true},
+      {key:'vendas_julho', keyCliente:'vendas_julho_cliente', label:'Vendas Julho (Placa/Cliente)', duo:true},
     ] : [
-      {key:'vendas_total_periodo'+suf, label:'Vendas (Mai+Jun+Jul)', fmt:num},
+      {key:'vendas_total_periodo', keyCliente:'vendas_total_periodo_cliente', label:'Vendas Mai+Jun+Jul (Placa/Cliente)', duo:true},
     ]),
     {key:'ativos', label:'Ativos', fmt:num},
     {key:'inadimplentes', label:'Inadimplentes', fmt:num},
@@ -421,6 +418,7 @@ function renderBody(){
   });
   document.getElementById('table-body').innerHTML = rows.map(r => `
     <tr>${cols.map(c => {
+      if(c.duo) return `<td>${duoVendas(r[c.key], r[c.keyCliente])}</td>`;
       const v = r[c.key];
       const disp = c.fmt ? c.fmt(v) : v;
       if(c.badge) return `<td><span class="badge ${badgeClass(v)}">${disp}</span></td>`;
@@ -442,12 +440,6 @@ document.getElementById('vendas-detalhe-toggle').addEventListener('click', funct
   this.classList.toggle('active', vendasDetalheMensal);
   renderHead(); renderBody();
 });
-document.getElementById('vendas-visao-toggle').addEventListener('click', function(){
-  visaoVendas = visaoVendas==='placa' ? 'cliente' : 'placa';
-  this.textContent = visaoVendas==='cliente' ? 'Visão: Cliente (clique p/ Placa)' : 'Visão: Placa (clique p/ Cliente)';
-  this.classList.toggle('active', visaoVendas==='cliente');
-  renderHead(); renderBody();
-});
 
 renderHead();
 renderBody();
@@ -455,30 +447,28 @@ renderBody();
 /* ---------------- COTAÇÕES / CONVERSÃO POR CONSULTOR ---------------- */
 const MLBL = {'2026-05':'Maio','2026-06':'Junho','2026-07':'Julho'};
 let convSortKey = 'total_cotado', convSortDir = -1;
-let visaoConv = 'placa'; // 'placa' | 'cliente'
-function sufixo(){ return visaoConv==='cliente' ? '_cliente' : ''; }
+// cada coluna mostra "Placa / Cliente" juntos na mesma célula — sem toggle
+function duo(placaVal, clienteVal, fmt){ return fmt(placaVal) + ' / ' + fmt(clienteVal); }
 function getConvCols(){
-  const suf = sufixo();
   const cols = [{key:'nome', label:'Consultor'}, {key:'unidade', label:'Unidade'}];
   CONV.meses.forEach(m => {
-    cols.push({key:'cot'+suf+'_'+m, label:MLBL[m]+' — Cotado', fmt:num});
-    cols.push({key:'fech'+suf+'_'+m, label:MLBL[m]+' — Fechado', fmt:num});
-    cols.push({key:'conv'+suf+'_'+m, label:MLBL[m]+' — % Conv.', fmt:pctConv, badgeConv:true});
+    cols.push({key:'cot_'+m, keyCliente:'cot_cliente_'+m, label:MLBL[m]+' — Cotado (Placa/Cliente)', fmt:num, duo:true});
+    cols.push({key:'fech_'+m, keyCliente:'fech_cliente_'+m, label:MLBL[m]+' — Fechado (Placa/Cliente)', fmt:num, duo:true});
+    cols.push({key:'conv_'+m, keyCliente:'conv_cliente_'+m, label:MLBL[m]+' — % Conv. (Placa/Cliente)', fmt:pctConv, duo:true, badgeConv:true});
   });
-  cols.push({key:'total_cotado'+suf, label:'Total Cotado', fmt:num});
-  cols.push({key:'total_fechado'+suf, label:'Total Fechado', fmt:num});
-  cols.push({key:'conversao'+suf, label:'% Conversão Total', fmt:pctConv, badgeConv:true});
+  cols.push({key:'total_cotado', keyCliente:'total_cotado_cliente', label:'Total Cotado (Placa/Cliente)', fmt:num, duo:true});
+  cols.push({key:'total_fechado', keyCliente:'total_fechado_cliente', label:'Total Fechado (Placa/Cliente)', fmt:num, duo:true});
+  cols.push({key:'conversao', keyCliente:'conversao_cliente', label:'% Conversão Total (Placa/Cliente)', fmt:pctConv, duo:true, badgeConv:true});
   return cols;
 }
 function pctConv(v){ return v===null||v===undefined ? '—' : pct(v); }
 function badgeConvClass(v){ if(v===null||v===undefined) return ''; if(v>=0.7) return 'g'; if(v>=0.4) return 'a'; return 'r'; }
 function renderConvCallout(){
-  const suf = sufixo(); const t = CONV.totais;
-  const cot = t['total_cotado'+suf], fech = t['total_fechado'+suf], conv = t['conversao'+suf];
+  const t = CONV.totais;
   const semCot = t.sem_cotacao_registrada ? ` · ${num(t.sem_cotacao_registrada)} consultor(es) sem cotação casada (exibem —)` : '';
-  const rotuloVisao = visaoConv==='cliente' ? ' (Visão Cliente — cada cliente contado 1x por mês, mesmo com várias cotações)' : ' (Visão Placa)';
   document.getElementById('conv-callout').innerHTML =
-    `<span>Conversão geral (mai–jul)${rotuloVisao}: <b style="font-size:16px;">${num(fech)} / ${num(cot)}</b> cotações viraram placa ativa</span> <b>${pct(conv)}</b>${semCot}`;
+    `<span>Conversão geral (mai–jul), Placa: <b style="font-size:16px;">${num(t.total_fechado)} / ${num(t.total_cotado)}</b> = <b>${pct(t.conversao)}</b>`
+    + ` &nbsp;·&nbsp; Cliente: <b style="font-size:16px;">${num(t.total_fechado_cliente)} / ${num(t.total_cotado_cliente)}</b> = <b>${pct(t.conversao_cliente)}</b></span>${semCot}`;
 }
 function renderConvHead(){
   const head = document.getElementById('conv-table-head');
@@ -503,20 +493,15 @@ function renderConvBody(){
   });
   document.getElementById('conv-table-body').innerHTML = rows.map(r => `
     <tr>${cols.map(c => {
-      const v = r[c.key];
-      const disp = c.fmt ? c.fmt(v) : v;
-      if(c.badgeConv) return `<td><span class="badge ${badgeConvClass(v)}">${disp}</span></td>`;
-      return `<td>${disp}</td>`;
+      if(c.duo){
+        const disp = duo(r[c.key], r[c.keyCliente], c.fmt);
+        if(c.badgeConv) return `<td><span class="badge ${badgeConvClass(r[c.key])}">${disp}</span></td>`;
+        return `<td>${disp}</td>`;
+      }
+      return `<td>${c.fmt ? c.fmt(r[c.key]) : r[c.key]}</td>`;
     }).join('')}</tr>`).join('');
 }
 document.getElementById('conv-search-box').addEventListener('input', renderConvBody);
-document.getElementById('conv-detalhe-toggle').addEventListener('click', function(){
-  visaoConv = visaoConv==='placa' ? 'cliente' : 'placa';
-  this.textContent = visaoConv==='cliente' ? 'Visão: Cliente (clique p/ Placa)' : 'Visão: Placa (clique p/ Cliente)';
-  this.classList.toggle('active', visaoConv==='cliente');
-  renderConvCallout(); renderConvHead(); renderConvBody();
-});
-document.getElementById('conv-detalhe-toggle').textContent = 'Visão: Placa (clique p/ Cliente)';
 renderConvCallout();
 renderConvHead();
 renderConvBody();
