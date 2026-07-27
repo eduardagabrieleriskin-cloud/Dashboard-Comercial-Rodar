@@ -65,6 +65,8 @@
   .tabs{display:flex; gap:6px; background:#EDF0F6; border-radius:10px; padding:4px; width:fit-content;}
   .tab-btn{border:none; background:transparent; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:600; color:var(--muted); cursor:pointer; font-family:'Inter',sans-serif;}
   .tab-btn.active{background:#fff; color:var(--navy); box-shadow:0 2px 6px rgba(20,35,70,.12);}
+  .toggle-btn{border:1px solid var(--line); background:#fff; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:600; color:var(--muted); cursor:pointer; font-family:'Inter',sans-serif;}
+  .toggle-btn.active{background:var(--navy); color:#fff; border-color:var(--navy);}
   .table-controls{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:12px;}
   .search-input{ border:1px solid var(--line); border-radius:8px; padding:9px 14px; font-size:13px; width:260px; font-family:'Inter',sans-serif; background:#fff; }
   .search-input:focus{outline:2px solid var(--sky); outline-offset:1px;}
@@ -178,6 +180,7 @@
           <button class="tab-btn" data-tab="representante">Por Representante</button>
         </div>
         <input class="search-input" id="search-box" placeholder="Buscar...">
+        <button class="toggle-btn" id="vendas-detalhe-toggle" type="button">Ver Maio + Junho + Julho separado</button>
       </div>
       <div class="table-scroll">
         <table id="data-table">
@@ -196,6 +199,7 @@
       <div class="callout" id="conv-callout"></div>
       <div class="table-controls">
         <input class="search-input" id="conv-search-box" placeholder="Buscar consultor...">
+        <button class="toggle-btn" id="conv-detalhe-toggle" type="button">Ver Maio + Junho + Julho separado</button>
       </div>
       <div class="table-scroll">
         <table id="conv-table">
@@ -236,6 +240,9 @@
 const DATA = JSON.parse(document.getElementById('dashboard-data').textContent);
 const K = DATA.kpis;
 const CONV = JSON.parse(document.getElementById('conversao-data').textContent);
+['unidade','representante'].forEach(t => (DATA[t]||[]).forEach(r => {
+  r.vendas_total_periodo = (r.vendas_maio||0) + (r.vendas_junho||0) + (r.vendas_julho||0);
+}));
 
 document.getElementById('gen-date').textContent = DATA.meta.gerado_em;
 function fmtDateBR(iso){ const [y,m,d]=iso.split('-'); return d+'/'+m+'/'+y; }
@@ -352,23 +359,33 @@ let currentTab = 'unidade';
 let sortKey = 'ativos';
 let sortDir = -1;
 
-const colsBase = [
-  {key:'vendas_maio', label:'Vendas Maio', fmt:num},
-  {key:'vendas_junho', label:'Vendas Junho', fmt:num},
-  {key:'vendas_julho', label:'Vendas Julho', fmt:num},
-  {key:'ativos', label:'Ativos', fmt:num},
-  {key:'inadimplentes', label:'Inadimplentes', fmt:num},
-  {key:'cancelados', label:'Cancelados', fmt:num},
-  {key:'inativos', label:'Inativos', fmt:num},
-  {key:'total', label:'Total (Ativo+Inad.)', fmt:num},
-  {key:'valor_total', label:'Valor (Ativo+Inad.)', fmt:brl},
-  {key:'pct_inadimplencia', label:'% Inadimpl.', fmt:pct, badge:true},
-  {key:'pct_perda', label:'% Perda', fmt:pct, badge:true},
-];
-const colsUnidade = [{key:'nome', label:'Unidade'}, ...colsBase];
-const colsRep = [{key:'nome', label:'Representante'}, {key:'unidade', label:'Unidade'}, ...colsBase];
+let vendasDetalheMensal = false;
+function getColsBase(){
+  return [
+    ...(vendasDetalheMensal ? [
+      {key:'vendas_maio', label:'Vendas Maio', fmt:num},
+      {key:'vendas_junho', label:'Vendas Junho', fmt:num},
+      {key:'vendas_julho', label:'Vendas Julho', fmt:num},
+    ] : [
+      {key:'vendas_total_periodo', label:'Vendas (Mai+Jun+Jul)', fmt:num},
+    ]),
+    {key:'ativos', label:'Ativos', fmt:num},
+    {key:'inadimplentes', label:'Inadimplentes', fmt:num},
+    {key:'cancelados', label:'Cancelados', fmt:num},
+    {key:'inativos', label:'Inativos', fmt:num},
+    {key:'total', label:'Total (Ativo+Inad.)', fmt:num},
+    {key:'valor_total', label:'Valor (Ativo+Inad.)', fmt:brl},
+    {key:'pct_inadimplencia', label:'% Inadimpl.', fmt:pct, badge:true},
+    {key:'pct_perda', label:'% Perda', fmt:pct, badge:true},
+  ];
+}
 
-function currentCols(){ return currentTab==='unidade' ? colsUnidade : colsRep; }
+function currentCols(){
+  const base = getColsBase();
+  return currentTab==='unidade'
+    ? [{key:'nome', label:'Unidade'}, ...base]
+    : [{key:'nome', label:'Representante'}, {key:'unidade', label:'Unidade'}, ...base];
+}
 function badgeClass(v){ if(v>=0.15) return 'r'; if(v>=0.07) return 'a'; return 'g'; }
 
 function renderHead(){
@@ -411,6 +428,12 @@ document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click
   renderHead(); renderBody();
 }));
 document.getElementById('search-box').addEventListener('input', renderBody);
+document.getElementById('vendas-detalhe-toggle').addEventListener('click', function(){
+  vendasDetalheMensal = !vendasDetalheMensal;
+  this.textContent = vendasDetalheMensal ? 'Juntar Maio + Junho + Julho' : 'Ver Maio + Junho + Julho separado';
+  this.classList.toggle('active', vendasDetalheMensal);
+  renderHead(); renderBody();
+});
 
 renderHead();
 renderBody();
@@ -418,14 +441,17 @@ renderBody();
 /* ---------------- COTAÇÕES / CONVERSÃO POR CONSULTOR ---------------- */
 const MLBL = {'2026-05':'Maio','2026-06':'Junho','2026-07':'Julho'};
 let convSortKey = 'total_cotado', convSortDir = -1;
-const convCols = [
-  {key:'nome', label:'Consultor'},
-  {key:'unidade', label:'Unidade'},
-  ...CONV.meses.map(m => ({key:'cot_'+m, label:'Cot. '+MLBL[m], fmt:num})),
-  {key:'total_cotado', label:'Total Cotado', fmt:num},
-  {key:'total_fechado', label:'Total Fechado', fmt:num},
-  {key:'conversao', label:'% Conversão', fmt:pctConv, badgeConv:true},
-];
+let convDetalheMensal = false;
+function getConvCols(){
+  return [
+    {key:'nome', label:'Consultor'},
+    {key:'unidade', label:'Unidade'},
+    ...(convDetalheMensal ? CONV.meses.map(m => ({key:'cot_'+m, label:'Cot. '+MLBL[m], fmt:num})) : []),
+    {key:'total_cotado', label:'Total Cotado (Mai+Jun+Jul)', fmt:num},
+    {key:'total_fechado', label:'Total Fechado', fmt:num},
+    {key:'conversao', label:'% Conversão', fmt:pctConv, badgeConv:true},
+  ];
+}
 function pctConv(v){ return v===null||v===undefined ? '—' : pct(v); }
 function badgeConvClass(v){ if(v===null||v===undefined) return ''; if(v>=0.7) return 'g'; if(v>=0.4) return 'a'; return 'r'; }
 function renderConvCallout(){
@@ -436,7 +462,7 @@ function renderConvCallout(){
 }
 function renderConvHead(){
   const head = document.getElementById('conv-table-head');
-  head.innerHTML = convCols.map(c => {
+  head.innerHTML = getConvCols().map(c => {
     const arrow = convSortKey===c.key ? (convSortDir===1?'▲':'▼') : '';
     return `<th data-key="${c.key}">${c.label}<span class="sort-arrow">${arrow}</span></th>`;
   }).join('');
@@ -447,6 +473,7 @@ function renderConvHead(){
   }));
 }
 function renderConvBody(){
+  const cols = getConvCols();
   const q = document.getElementById('conv-search-box').value.trim().toLowerCase();
   let rows = CONV.consultores.filter(r => r.nome.toLowerCase().includes(q) || (r.unidade||'').toLowerCase().includes(q));
   rows = rows.slice().sort((a,b) => {
@@ -455,7 +482,7 @@ function renderConvBody(){
     return convSortDir*(av-bv);
   });
   document.getElementById('conv-table-body').innerHTML = rows.map(r => `
-    <tr>${convCols.map(c => {
+    <tr>${cols.map(c => {
       const v = r[c.key];
       const disp = c.fmt ? c.fmt(v) : v;
       if(c.badgeConv) return `<td><span class="badge ${badgeConvClass(v)}">${disp}</span></td>`;
@@ -463,6 +490,12 @@ function renderConvBody(){
     }).join('')}</tr>`).join('');
 }
 document.getElementById('conv-search-box').addEventListener('input', renderConvBody);
+document.getElementById('conv-detalhe-toggle').addEventListener('click', function(){
+  convDetalheMensal = !convDetalheMensal;
+  this.textContent = convDetalheMensal ? 'Juntar Maio + Junho + Julho' : 'Ver Maio + Junho + Julho separado';
+  this.classList.toggle('active', convDetalheMensal);
+  renderConvHead(); renderConvBody();
+});
 renderConvCallout();
 renderConvHead();
 renderConvBody();

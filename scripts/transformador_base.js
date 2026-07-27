@@ -24,6 +24,11 @@ function titleCase(s) {
   return (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ')
     .split(' ').map(w => ['de','da','do','e','dos','das'].includes(w) ? w : (w.charAt(0).toUpperCase() + w.slice(1))).join(' ');
 }
+function canonicalizeUnidade(s) {
+  // remove o código numérico na frente ("689 - Kcor Londrina" -> "Kcor Londrina") e padroniza capitalização
+  const semCodigo = (s || '').toString().trim().replace(/^\d+\s*-\s*/, '');
+  return titleCase(semCodigo);
+}
 function ehTeste(consultor, loja) {
   const n = (consultor || '').trim().toLowerCase();
   if ((loja || '').trim().toLowerCase() === 'teste rodar') return true;
@@ -54,8 +59,9 @@ module.exports = function build(xlsxPath, ateISO) {
     const consultor = titleCase(r[C.consultor]);
     const loja = r[C.loja];
     if (ehTeste(r[C.consultor], loja)) continue;                 // fora testes
-    const unidade = MAPA[(r[C.consultor] || '').toString().trim().toUpperCase()];
-    if (!unidade) { if (consultor) dropConsultores.add(consultor); continue; } // sem unidade => fora (regra)
+    const unidadeRaw = MAPA[(r[C.consultor] || '').toString().trim().toUpperCase()];
+    if (!unidadeRaw) { if (consultor) dropConsultores.add(consultor); continue; } // sem unidade => fora (regra)
+    const unidade = canonicalizeUnidade(unidadeRaw);
     regs.push({
       situacao, consultor, unidade,
       adesao: parseISO(r[C.adesao]),
