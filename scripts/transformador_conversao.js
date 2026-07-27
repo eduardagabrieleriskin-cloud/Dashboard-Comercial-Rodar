@@ -4,11 +4,19 @@
  * Fontes:
  *  - Controle de Subscrição V2 (PPM/AMSS): cada linha = 1 placa cotada, com Representante, Franquia, Data e Status
  *  - BASE do Siprov: define o FECHAMENTO (placa com situação Ativo/Inadimplente)
+ *  - representantesBase: array já canonicalizado (nome + unidade) vindo do transformador_base,
+ *    para que TODO consultor da carteira apareça nesta tabela — mesmo sem cotação casada.
  *
- * Cruzamento por PLACA (não por nome) — garante que a conversão nunca passe de 100%,
- * pois os fechamentos são sempre um subconjunto das placas cotadas.
+ * O nome do consultor no arquivo do PPM vem truncado em 30 caracteres, então o
+ * casamento de nomes usa: (1) igual, (2) prefixo (cobre o truncamento),
+ * (3) maior prefixo de tokens em comum, (4) primeiro+último token iguais.
+ * Em caso de empate entre dois consultores candidatos, a cotação fica sem
+ * atribuição (não conta para nenhum dos dois) — evita atribuir errado.
  *
- * Uso: build(subscricaoXlsx, baseXlsx, ateISO) -> { consultores, totais, meses }
+ * Cruzamento cotação->fechamento por PLACA (não por nome) — garante que a
+ * conversão nunca passe de 100%.
+ *
+ * Uso: build(subscricaoXlsx, baseXlsx, ateISO, representantesBase) -> { consultores, totais, meses }
  */
 const XLSX = require('xlsx');
 
@@ -17,17 +25,22 @@ const B = { situacao: 16, placa: 26 };
 const MESES = ['2026-05', '2026-06', '2026-07'];
 
 const np = s => (s || '').toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
+function norm(s) { return (s || '').toString().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim(); }
+function tok(s) { return norm(s).split(' ').filter(Boolean); }
+function commonPrefix(ta, tb) { let n = 0; while (n < ta.length && n < tb.length && ta[n] === tb[n]) n++; return n; }
+function scoreNomes(cotName, baseName) {
+  const nc = norm(cotName), nb = norm(baseName);
+  if (nc === nb) return 1000;
+  if (nc.length >= 28 && nb.startsWith(nc)) return 900;   // truncado a 30 chars no PPM
+  if (nb.length >= 28 && nc.startsWith(nb)) return 900;
+  const tc = tok(cotName), tb = tok(baseName);
+  let s = commonPrefix(tc, tb);
+  if (s < 2 && tc.length >= 2 && tb.length >= 2 && tc[0] === tb[0] && tc[tc.length - 1] === tb[tb.length - 1]) s = 2;
+  return s;
+}
 function iso(s) { if (!s) return null; const m = String(s).match(/(\d{2})\/(\d{2})\/(\d{4})/); return m ? m[3] + '-' + m[2] + '-' + m[1] : null; }
-function titleCase(s) {
-  return (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ')
-    .split(' ').map(w => ['de','da','do','e','dos','das'].includes(w) ? w : (w.charAt(0).toUpperCase() + w.slice(1))).join(' ');
-}
-function ehTeste(nome) {
-  const n = (nome || '').trim().toLowerCase();
-  return n === 'eduarda' || n === 'yara' || n === 'teste' || /^teste?\b/.test(n) || n.includes('(teste)');
-}
 
-module.exports = function build(subscricaoXlsx, baseXlsx, ateISO) {
+module.exports = function build(subscricaoXlsx, baseXlsx, ateISO, representantesBase) {
   const ate = ateISO || '2026-12-31';
 
   // fechamentos: placas ativas/inadimplentes na BASE
@@ -43,30 +56,41 @@ module.exports = function build(subscricaoXlsx, baseXlsx, ateISO) {
   const wbS = XLSX.readFile(subscricaoXlsx);
   const sub = XLSX.utils.sheet_to_json(wbS.Sheets[wbS.SheetNames[0]], { header: 1, raw: false }).slice(2);
 
+  const nomesBase = representantesBase.map(r => r.nome);
+  const rawNomesCot = [...new Set(sub.map(r => (r[S.representante] || '').trim()).filter(Boolean))];
+
+  // para cada nome bruto do PPM, acha o melhor consultor da BASE (evita atribuição ambígua)
+  const destino = {};
+  for (const cn of rawNomesCot) {
+    const scored = nomesBase.map(bn => ({ bn, s: scoreNomes(cn, bn) })).filter(x => x.s > 0).sort((a, b) => b.s - a.s);
+    if (!scored.length) continue;
+    const top = scored[0].s;
+    if (scored.filter(x => x.s === top).length > 1) continue; // empate -> descarta (ambíguo)
+    destino[cn] = scored[0].bn;
+  }
+
+  // agrega cotações por consultor da BASE (usando o destino calculado)
   const acc = {};
+  representantesBase.forEach(r => { acc[r.nome] = { nome: r.nome, unidade: r.unidade, cot: {}, fech: {}, total_cot: 0, total_fech: 0 }; });
+
   for (const r of sub) {
     const d = iso(r[S.data]);
     if (!d || d > ate) continue;
-    const nome = titleCase(r[S.representante]);
-    if (!nome || ehTeste(nome)) continue;
     const mes = d.slice(0, 7);
-    if (!MESES.includes(mes)) continue;                       // foco: maio a julho
-    const a = acc[nome] || (acc[nome] = {
-      nome, unidade: (r[S.franquia] || '(Sem Unidade)').toString().trim(),
-      cot: {}, fech: {}, cotacoes: new Set(), total_cot: 0, total_fech: 0
-    });
+    if (!MESES.includes(mes)) continue;
+    const nomeBaseAlvo = destino[(r[S.representante] || '').trim()];
+    if (!nomeBaseAlvo) continue;
+    const a = acc[nomeBaseAlvo];
     a.cot[mes] = (a.cot[mes] || 0) + 1;
     a.total_cot++;
-    if (r[S.cotacao]) a.cotacoes.add(String(r[S.cotacao]));
     if (fechadas.has(np(r[S.placa]))) { a.fech[mes] = (a.fech[mes] || 0) + 1; a.total_fech++; }
   }
 
   const consultores = Object.values(acc).map(a => {
     const o = {
       nome: a.nome, unidade: a.unidade,
-      cotacoes_distintas: a.cotacoes.size,
       total_cotado: a.total_cot, total_fechado: a.total_fech,
-      conversao: a.total_cot ? +(a.total_fech / a.total_cot).toFixed(4) : 0
+      conversao: a.total_cot ? +(a.total_fech / a.total_cot).toFixed(4) : null,
     };
     MESES.forEach(m => { o['cot_' + m] = a.cot[m] || 0; o['fech_' + m] = a.fech[m] || 0; });
     return o;
@@ -87,7 +111,8 @@ module.exports = function build(subscricaoXlsx, baseXlsx, ateISO) {
       o[m] = { cotado: c, fechado: f, conversao: c ? +(f / c).toFixed(4) : 0 };
       return o;
     }, {}),
-    consultores: consultores.length
+    consultores: consultores.length,
+    sem_cotacao_registrada: consultores.filter(c => c.total_cotado === 0).length
   };
 
   return { consultores, totais, meses: MESES };

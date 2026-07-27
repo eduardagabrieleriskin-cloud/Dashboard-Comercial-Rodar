@@ -51,10 +51,11 @@ try {
     log('consultores sem unidade (descartados): ' + res.diagnostico.consultoresSemUnidade.join(', '));
   res.data.meta.gerado_em = fmtBR(new Date());
 
-  let conversao = { consultores: [], totais: { total_cotado: 0, total_fechado: 0, conversao: 0, por_mes: {}, consultores: 0 }, meses: ['2026-05', '2026-06', '2026-07'] };
+  let conversao = { consultores: [], totais: { total_cotado: 0, total_fechado: 0, conversao: 0, por_mes: {}, consultores: 0, sem_cotacao_registrada: 0 }, meses: ['2026-05', '2026-06', '2026-07'] };
   if (subscricao) {
-    conversao = buildConversao(subscricao.full, base.full, ate);
-    log('conversão calculada: ' + conversao.consultores.length + ' consultores | ' + conversao.totais.total_fechado + '/' + conversao.totais.total_cotado + ' (' + (conversao.totais.conversao * 100).toFixed(1) + '%)');
+    conversao = buildConversao(subscricao.full, base.full, ate, res.data.representante);
+    log('conversão calculada: ' + conversao.consultores.length + ' consultores (' + conversao.totais.sem_cotacao_registrada + ' sem cotação casada) | '
+      + conversao.totais.total_fechado + '/' + conversao.totais.total_cotado + ' (' + (conversao.totais.conversao * 100).toFixed(1) + '%)');
   } else {
     log('AVISO: sem Controle_de_Subscrição em Downloads — seção de cotações/conversão ficará vazia.');
   }
