@@ -24,7 +24,7 @@ const LOG = path.join(__dirname, 'atualizar.log');
 
 function log(m) { const l = '[' + new Date().toISOString() + '] ' + m; console.log(l); try { fs.appendFileSync(LOG, l + '\n'); } catch (e) {} }
 function fmtBR(dt) { return String(dt.getDate()).padStart(2, '0') + '/' + String(dt.getMonth() + 1).padStart(2, '0') + '/' + dt.getFullYear(); }
-function isoOntem() { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); }
+function isoHoje() { return new Date().toISOString().slice(0, 10); }
 
 function acharMaisRecente(regex) {
   const arqs = fs.readdirSync(DOWNLOADS)
@@ -43,7 +43,7 @@ try {
   const marca = fs.existsSync(MARKER) ? fs.readFileSync(MARKER, 'utf8').trim() : '';
   if (marca === assinatura) { log('fontes mais recentes já publicadas (' + base.f + (subscricao ? ' + ' + subscricao.f : '') + '). Nada novo.'); process.exit(0); }
 
-  const ate = isoOntem();
+  const ate = isoHoje();
   log('fonte BASE: ' + base.f + ' | fonte Subscrição: ' + (subscricao ? subscricao.f : '(nenhuma)') + ' | até ' + ate);
 
   const res = buildBase(base.full, ate);
