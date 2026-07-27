@@ -70,13 +70,15 @@
   .table-controls{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:12px;}
   .search-input{ border:1px solid var(--line); border-radius:8px; padding:9px 14px; font-size:13px; width:260px; font-family:'Inter',sans-serif; background:#fff; }
   .search-input:focus{outline:2px solid var(--sky); outline-offset:1px;}
-  table{width:100%; min-width:900px; border-collapse:collapse; font-size:13px; table-layout:fixed;}
-  thead th{ text-align:right; padding:10px 10px; background:var(--navy); color:#fff; font-weight:600; font-size:11.5px;
-    letter-spacing:.03em; text-transform:uppercase; cursor:pointer; user-select:none; white-space:normal; line-height:1.3; vertical-align:bottom; width:98px; }
+  table{width:100%; min-width:900px; border-collapse:collapse; font-size:12.5px; table-layout:fixed;}
+  thead th{ text-align:right; padding:8px 16px 8px 8px; background:var(--navy); color:#fff; font-weight:600; font-size:10.5px;
+    letter-spacing:.02em; text-transform:uppercase; cursor:pointer; user-select:none; white-space:normal; line-height:1.25; vertical-align:bottom; position:relative; }
+  .col-resize-handle{ position:absolute; right:0; top:0; bottom:0; width:8px; cursor:col-resize; background:transparent; z-index:5; }
+  .col-resize-handle:hover, .col-resize-handle.active{ background:rgba(255,255,255,.35); }
   thead th[data-key="nome"]{text-align:left; width:190px;}
   thead th[data-key="unidade"]{text-align:left; width:150px;}
   thead th:hover{background:var(--blue);}
-  tbody td{padding:9px 10px; text-align:right; border-bottom:1px solid var(--line); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  tbody td{padding:8px 6px; text-align:right; border-bottom:1px solid var(--line); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   tbody td:first-child, tbody td:nth-child(2){text-align:left; font-weight:600;}
   thead th[data-key="nome"], tbody td:first-child{
     position:sticky; left:0; background:var(--card); z-index:2; box-shadow:2px 0 4px rgba(20,35,70,.06);
@@ -181,6 +183,7 @@
       </div>
       <div class="table-scroll">
         <table id="conv-table">
+          <colgroup id="conv-table-colgroup"></colgroup>
           <thead><tr id="conv-table-head-group"></tr><tr id="conv-table-head"></tr></thead>
           <tbody id="conv-table-body"></tbody>
         </table>
@@ -211,6 +214,7 @@
       </div>
       <div class="table-scroll">
         <table id="data-table">
+          <colgroup id="table-colgroup"></colgroup>
           <thead><tr id="table-head-group"></tr><tr id="table-head"></tr></thead>
           <tbody id="table-body"></tbody>
         </table>
@@ -245,6 +249,36 @@
 <script id="dashboard-data" type="application/json">__DATA__</script>
 <script id="conversao-data" type="application/json">__CONVERSAO__</script>
 <script>
+/* ---------------- tabelas: colunas com largura ajustável (arraste a borda) ---------------- */
+function defaultColWidth(leaf){
+  if(leaf.key==='nome') return 200;
+  if(leaf.key==='unidade') return 160;
+  return 88;
+}
+function initColgroup(colgroupEl, leaves){
+  colgroupEl.innerHTML = leaves.map((l,i) => `<col data-col="${i}" style="width:${defaultColWidth(l)}px">`).join('');
+}
+function attachColResize(tableId, colgroupEl, leaves){
+  const cols = colgroupEl.children;
+  leaves.forEach((leaf, i) => {
+    const th = document.querySelector('#'+tableId+' th[data-key="'+leaf.key+'"]');
+    if(!th) return;
+    const handle = document.createElement('span');
+    handle.className = 'col-resize-handle';
+    handle.addEventListener('mousedown', function(e){
+      e.preventDefault(); e.stopPropagation();
+      handle.classList.add('active');
+      const startX = e.clientX;
+      const startWidth = cols[i].getBoundingClientRect().width;
+      function onMove(ev){ cols[i].style.width = Math.max(48, startWidth + (ev.clientX - startX)) + 'px'; }
+      function onUp(){ handle.classList.remove('active'); document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+    th.appendChild(handle);
+  });
+}
+
 const DATA = JSON.parse(document.getElementById('dashboard-data').textContent);
 const K = DATA.kpis;
 const CONV = JSON.parse(document.getElementById('conversao-data').textContent);
@@ -430,7 +464,11 @@ function renderHead(){
     if(sortKey===key){ sortDir *= -1; } else { sortKey = key; sortDir = key==='nome'||key==='unidade'?1:-1; }
     renderBody(); renderHead();
   }));
+  const colgroupEl = document.getElementById('table-colgroup');
+  if(leaves.length !== lastVendasColCount){ initColgroup(colgroupEl, leaves); lastVendasColCount = leaves.length; }
+  attachColResize('data-table', colgroupEl, leaves);
 }
+let lastVendasColCount = 0;
 
 function renderBody(){
   const cols = currentLeaves();
@@ -523,7 +561,11 @@ function renderConvHead(){
     if(convSortKey===key){ convSortDir *= -1; } else { convSortKey = key; convSortDir = (key==='nome'||key==='unidade')?1:-1; }
     renderConvBody(); renderConvHead();
   }));
+  const colgroupEl = document.getElementById('conv-table-colgroup');
+  if(leaves.length !== lastConvColCount){ initColgroup(colgroupEl, leaves); lastConvColCount = leaves.length; }
+  attachColResize('conv-table', colgroupEl, leaves);
 }
+let lastConvColCount = 0;
 function renderConvBody(){
   const cols = getConvLeaves();
   const q = document.getElementById('conv-search-box').value.trim().toLowerCase();
