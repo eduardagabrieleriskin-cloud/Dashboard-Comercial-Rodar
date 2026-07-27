@@ -17,7 +17,7 @@ const path = require('path');
 const MAPA = JSON.parse(fs.readFileSync(path.join(__dirname, 'mapa_unidades.json'), 'utf8'));
 
 // colunas (0-indexed) do BASE
-const C = { situacao: 16, valorAjust: 19, placa: 26, cpfConsultor: 31, adesao: 32, loja: 36, consultor: 38 };
+const C = { cpfAssociado: 0, situacao: 16, valorAjust: 19, placa: 26, cpfConsultor: 31, adesao: 32, loja: 36, consultor: 38 };
 const MESES = ['2026-05', '2026-06', '2026-07'];
 
 function titleCase(s) {
@@ -64,13 +64,21 @@ module.exports = function build(xlsxPath, ateISO) {
     const unidade = canonicalizeUnidade(unidadeRaw);
     regs.push({
       situacao, consultor, unidade,
+      cpfAssociado: (r[C.cpfAssociado] || '').toString().trim(),
       adesao: parseISO(r[C.adesao]),
       valor: toNum(r[C.valorAjust]),
     });
   }
 
   const ate = ateISO || '2026-12-31';
-  const ehVendaMes = (reg, mes) => reg.adesao && reg.adesao.slice(0, 7) === mes && reg.adesao <= ate;
+  // corte pelo mesmo número de dias em cada mês, para comparação justa (ex: julho parcial até dia 27 -> maio/junho também só até dia 27)
+  const diaCorte = new Date(ate + 'T12:00:00').getDate();
+  function limiteMes(mes) {
+    const [ano, m] = mes.split('-').map(Number);
+    const diasNoMes = new Date(ano, m, 0).getDate();
+    return mes + '-' + String(Math.min(diaCorte, diasNoMes)).padStart(2, '0');
+  }
+  const ehVendaMes = (reg, mes) => reg.adesao && reg.adesao.slice(0, 7) === mes && reg.adesao <= limiteMes(mes);
   const ehAtivo = reg => reg.situacao === 'Ativo' || reg.situacao === 'Inadimplente';
 
   // ---- KPIs ----
@@ -78,7 +86,8 @@ module.exports = function build(xlsxPath, ateISO) {
     const v = regs.filter(x => ehVendaMes(x, mes));
     const valor = v.reduce((s, x) => s + x.valor, 0);
     const comValor = v.filter(x => x.valor > 0).length;
-    return { qtde: v.length, valor: +valor.toFixed(2), ticket_medio: v.length ? +(valor / v.length).toFixed(2) : 0,
+    const clientes = new Set(v.map(x => x.cpfAssociado)).size;
+    return { qtde: v.length, qtde_cliente: clientes, valor: +valor.toFixed(2), ticket_medio: v.length ? +(valor / v.length).toFixed(2) : 0,
       cobertura_valor_n: comValor, cobertura_valor_pct: v.length ? +(comValor / v.length).toFixed(3) : 0 };
   }
   const vm = vendasMes('2026-05'), vj = vendasMes('2026-06'), vjl = vendasMes('2026-07');
@@ -92,6 +101,7 @@ module.exports = function build(xlsxPath, ateISO) {
     data_ultima_venda: regs.filter(x => x.adesao && x.adesao <= ate).map(x => x.adesao).sort().pop() || ate,
     vendas_maio: vm, vendas_junho: vj, vendas_julho: vjl,
     var_maio_junho_pct: vm.qtde ? +((vj.qtde - vm.qtde) / vm.qtde).toFixed(4) : 0,
+    var_junho_julho_pct: vj.qtde ? +((vjl.qtde - vj.qtde) / vj.qtde).toFixed(4) : 0,
     var_junho_julho_ritmo_pct: 0,
     carteira_qtde: carteira.length, carteira_valor: somaVal(carteira),
     carteira_ticket_medio: carteira.length ? +(somaVal(carteira) / carteira.length).toFixed(2) : 0,
@@ -118,11 +128,12 @@ module.exports = function build(xlsxPath, ateISO) {
     for (const x of regs) {
       const k = keyFn(x);
       const g = o[k] || (o[k] = { nome: k, vendas_maio: 0, vendas_junho: 0, vendas_julho: 0,
+        _cliMaio: new Set(), _cliJunho: new Set(), _cliJulho: new Set(),
         ativos: 0, valor_ativos: 0, inadimplentes: 0, valor_inadimplentes: 0, cancelados: 0, inativos: 0, pendentes: 0,
         total: 0, valor_total: 0, _unidade: x.unidade });
-      if (ehVendaMes(x, '2026-05')) g.vendas_maio++;
-      if (ehVendaMes(x, '2026-06')) g.vendas_junho++;
-      if (ehVendaMes(x, '2026-07')) g.vendas_julho++;
+      if (ehVendaMes(x, '2026-05')) { g.vendas_maio++; g._cliMaio.add(x.cpfAssociado); }
+      if (ehVendaMes(x, '2026-06')) { g.vendas_junho++; g._cliJunho.add(x.cpfAssociado); }
+      if (ehVendaMes(x, '2026-07')) { g.vendas_julho++; g._cliJulho.add(x.cpfAssociado); }
       if (x.situacao === 'Ativo') { g.ativos++; g.valor_ativos += x.valor; }
       if (x.situacao === 'Inadimplente') { g.inadimplentes++; g.valor_inadimplentes += x.valor; }
       if (x.situacao === 'Cancelado') g.cancelados++;
@@ -130,6 +141,8 @@ module.exports = function build(xlsxPath, ateISO) {
       if (x.situacao === 'Pendente') g.pendentes++;
     }
     return Object.values(o).map(g => {
+      g.vendas_maio_cliente = g._cliMaio.size; g.vendas_junho_cliente = g._cliJunho.size; g.vendas_julho_cliente = g._cliJulho.size;
+      delete g._cliMaio; delete g._cliJunho; delete g._cliJulho;
       g.total = g.ativos + g.inadimplentes;
       g.valor_total = +(g.valor_ativos + g.valor_inadimplentes).toFixed(2);
       g.valor_ativos = +g.valor_ativos.toFixed(2);
@@ -158,19 +171,7 @@ module.exports = function build(xlsxPath, ateISO) {
     const dow = d.getUTCDay(); is_weekday.push(dow !== 0 && dow !== 6);
     d.setUTCDate(d.getUTCDate() + 1);
   }
-  function mm(win) {
-    const out = []; let ultimaMedia = 0;
-    for (let i = 0; i < dates.length; i++) {
-      if (is_weekday[i]) {
-        const jan = []; let j = i;
-        while (j >= 0 && jan.length < win) { if (is_weekday[j]) jan.push(qtde[j]); j--; }
-        ultimaMedia = +(jan.reduce((s, v) => s + v, 0) / jan.length).toFixed(2);
-      }
-      out.push(ultimaMedia);
-    }
-    return out;
-  }
-  const daily = { dates, qtde, is_weekday, ma7: mm(7), ma15: mm(15), ma30: mm(30) };
+  const daily = { dates, qtde, is_weekday };
 
   return {
     data: { kpis, unidade, representante, daily, meta: { gerado_em: '__HOJE__', periodo: 'Maio, Junho e Julho de 2026 (até ' + ate.split('-').reverse().join('/') + ')' } },

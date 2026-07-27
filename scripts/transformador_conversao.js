@@ -24,7 +24,7 @@
  */
 const XLSX = require('xlsx');
 
-const S = { codigo: 0, placa: 3, data: 4, franquia: 6, representante: 7, status: 8 };
+const S = { codigo: 0, associado: 1, placa: 3, data: 4, franquia: 6, representante: 7, status: 8 };
 const B = { situacao: 16, placa: 26 };
 const MESES = ['2026-05', '2026-06', '2026-07'];
 
@@ -51,6 +51,12 @@ function algumaPlacaFechada(celula, fechadas) {
 
 module.exports = function build(cotacoesXlsx, baseXlsx, ateISO, representantesBase) {
   const ate = ateISO || '2026-12-31';
+  const diaCorte = new Date(ate + 'T12:00:00').getDate();
+  function limiteMes(mes) {
+    const [ano, m] = mes.split('-').map(Number);
+    const diasNoMes = new Date(ano, m, 0).getDate();
+    return mes + '-' + String(Math.min(diaCorte, diasNoMes)).padStart(2, '0');
+  }
 
   // fechamentos: placas ativas/inadimplentes na BASE
   const wbB = XLSX.readFile(baseXlsx);
@@ -79,20 +85,36 @@ module.exports = function build(cotacoesXlsx, baseXlsx, ateISO, representantesBa
   }
 
   // agrega cotações por consultor da BASE (usando o destino calculado)
+  // "cliente" = mesmo associado cotado mais de uma vez (mesmo dentro do mês) conta 1x na Visão Cliente
   const acc = {};
-  representantesBase.forEach(r => { acc[r.nome] = { nome: r.nome, unidade: r.unidade, cot: {}, fech: {}, total_cot: 0, total_fech: 0 }; });
+  representantesBase.forEach(r => { acc[r.nome] = {
+    nome: r.nome, unidade: r.unidade, cot: {}, fech: {}, total_cot: 0, total_fech: 0,
+    cliCot: {}, cliFech: {}, total_cliCot: new Set(), total_cliFech: new Set()
+  }; });
 
   for (const r of cot) {
     const d = iso(r[S.data]);
-    if (!d || d > ate) continue;
+    if (!d) continue;
     const mes = d.slice(0, 7);
-    if (!MESES.includes(mes)) continue;
+    if (!MESES.includes(mes) || d > limiteMes(mes)) continue;
     const nomeBaseAlvo = destino[(r[S.representante] || '').trim()];
     if (!nomeBaseAlvo) continue;
     const a = acc[nomeBaseAlvo];
+    const cliente = norm(r[S.associado]);
+    const fechou = algumaPlacaFechada(r[S.placa], fechadas);
+
     a.cot[mes] = (a.cot[mes] || 0) + 1;
     a.total_cot++;
-    if (algumaPlacaFechada(r[S.placa], fechadas)) { a.fech[mes] = (a.fech[mes] || 0) + 1; a.total_fech++; }
+    if (fechou) { a.fech[mes] = (a.fech[mes] || 0) + 1; a.total_fech++; }
+
+    if (cliente) {
+      (a.cliCot[mes] || (a.cliCot[mes] = new Set())).add(cliente);
+      a.total_cliCot.add(mes + '|' + cliente);
+      if (fechou) {
+        (a.cliFech[mes] || (a.cliFech[mes] = new Set())).add(cliente);
+        a.total_cliFech.add(mes + '|' + cliente);
+      }
+    }
   }
 
   const consultores = Object.values(acc).map(a => {
@@ -100,24 +122,38 @@ module.exports = function build(cotacoesXlsx, baseXlsx, ateISO, representantesBa
       nome: a.nome, unidade: a.unidade,
       total_cotado: a.total_cot, total_fechado: a.total_fech,
       conversao: a.total_cot ? +(a.total_fech / a.total_cot).toFixed(4) : null,
+      total_cotado_cliente: a.total_cliCot.size, total_fechado_cliente: a.total_cliFech.size,
+      conversao_cliente: a.total_cliCot.size ? +(a.total_cliFech.size / a.total_cliCot.size).toFixed(4) : null,
     };
-    MESES.forEach(m => { o['cot_' + m] = a.cot[m] || 0; o['fech_' + m] = a.fech[m] || 0; });
+    MESES.forEach(m => {
+      const cm = a.cot[m] || 0, fm = a.fech[m] || 0;
+      o['cot_' + m] = cm; o['fech_' + m] = fm;
+      o['conv_' + m] = cm ? +(fm / cm).toFixed(4) : null;
+      const ccm = a.cliCot[m] ? a.cliCot[m].size : 0, cfm = a.cliFech[m] ? a.cliFech[m].size : 0;
+      o['cot_cliente_' + m] = ccm; o['fech_cliente_' + m] = cfm;
+      o['conv_cliente_' + m] = ccm ? +(cfm / ccm).toFixed(4) : null;
+    });
     return o;
   }).sort((x, y) => y.total_cotado - x.total_cotado);
 
   // sanidade: conversão nunca > 100%
-  const invalidos = consultores.filter(c => c.total_fechado > c.total_cotado);
+  const invalidos = consultores.filter(c => c.total_fechado > c.total_cotado || c.total_fechado_cliente > c.total_cotado_cliente);
   if (invalidos.length) throw new Error('conversao >100% em: ' + invalidos.map(c => c.nome).join(', '));
 
   const tc = consultores.reduce((s, c) => s + c.total_cotado, 0);
   const tf = consultores.reduce((s, c) => s + c.total_fechado, 0);
+  const tcc = consultores.reduce((s, c) => s + c.total_cotado_cliente, 0);
+  const tfc = consultores.reduce((s, c) => s + c.total_fechado_cliente, 0);
   const totais = {
-    total_cotado: tc, total_fechado: tf,
-    conversao: tc ? +(tf / tc).toFixed(4) : 0,
+    total_cotado: tc, total_fechado: tf, conversao: tc ? +(tf / tc).toFixed(4) : 0,
+    total_cotado_cliente: tcc, total_fechado_cliente: tfc, conversao_cliente: tcc ? +(tfc / tcc).toFixed(4) : 0,
     por_mes: MESES.reduce((o, m) => {
       const c = consultores.reduce((s, x) => s + x['cot_' + m], 0);
       const f = consultores.reduce((s, x) => s + x['fech_' + m], 0);
-      o[m] = { cotado: c, fechado: f, conversao: c ? +(f / c).toFixed(4) : 0 };
+      const cc = consultores.reduce((s, x) => s + x['cot_cliente_' + m], 0);
+      const fc = consultores.reduce((s, x) => s + x['fech_cliente_' + m], 0);
+      o[m] = { cotado: c, fechado: f, conversao: c ? +(f / c).toFixed(4) : 0,
+        cotado_cliente: cc, fechado_cliente: fc, conversao_cliente: cc ? +(fc / cc).toFixed(4) : 0 };
       return o;
     }, {}),
     consultores: consultores.length,
