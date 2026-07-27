@@ -70,13 +70,19 @@
   .table-controls{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:12px;}
   .search-input{ border:1px solid var(--line); border-radius:8px; padding:9px 14px; font-size:13px; width:260px; font-family:'Inter',sans-serif; background:#fff; }
   .search-input:focus{outline:2px solid var(--sky); outline-offset:1px;}
-  table{width:100%; border-collapse:collapse; font-size:13px;}
-  thead th{ text-align:right; padding:10px 12px; background:var(--navy); color:#fff; font-weight:600; font-size:11.5px;
-    letter-spacing:.03em; text-transform:uppercase; cursor:pointer; user-select:none; white-space:nowrap; }
-  thead th:first-child, thead th:nth-child(2){text-align:left;}
+  table{width:100%; min-width:900px; border-collapse:collapse; font-size:13px; table-layout:fixed;}
+  thead th{ text-align:right; padding:10px 10px; background:var(--navy); color:#fff; font-weight:600; font-size:11.5px;
+    letter-spacing:.03em; text-transform:uppercase; cursor:pointer; user-select:none; white-space:normal; line-height:1.3; vertical-align:bottom; width:98px; }
+  thead th:first-child{text-align:left; width:190px;}
+  thead th:nth-child(2){text-align:left; width:150px;}
   thead th:hover{background:var(--blue);}
-  tbody td{padding:9px 12px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap;}
+  tbody td{padding:9px 10px; text-align:right; border-bottom:1px solid var(--line); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   tbody td:first-child, tbody td:nth-child(2){text-align:left; font-weight:600;}
+  thead th:first-child, tbody td:first-child{
+    position:sticky; left:0; background:var(--card); z-index:2; box-shadow:2px 0 4px rgba(20,35,70,.06);
+  }
+  thead th:first-child{background:var(--navy); z-index:3;}
+  tbody tr:hover td:first-child{background:#F5F8FD;}
   tbody tr:hover{background:#F5F8FD;}
   .badge{display:inline-block; padding:3px 9px; border-radius:20px; font-size:12px; font-weight:600;}
   .badge.g{background:var(--green-soft); color:var(--green);} .badge.a{background:var(--amber-soft); color:var(--amber);} .badge.r{background:var(--red-soft); color:var(--red);}
@@ -165,7 +171,7 @@
 
   <section>
     <div class="section-head">
-      <div><h2>Cotações e Taxa de Conversão por Consultor</h2><p>Quantidade de cotações (placas) por mês e % de conversão (cotações que viraram placa ativa/inadimplente ÷ total cotado), por consultor.</p></div>
+      <div><h2>Cotações e Taxa de Conversão por Consultor</h2><p>Quantidade de cotações por mês e % de conversão (cotações que viraram placa ativa/inadimplente ÷ total cotado), por consultor. Cada célula mostra <b>Visão Placa / Visão Cliente</b>.</p></div>
     </div>
     <div class="card">
       <div class="callout" id="conv-callout"></div>
@@ -191,7 +197,7 @@
 
   <section>
     <div class="section-head">
-      <div><h2>Detalhamento — Unidade e Representante</h2><p>Vendas, estoque, inadimplência e perda. Ordenado por Ativos (maior para o menor). Clique nos cabeçalhos para reordenar.</p></div>
+      <div><h2>Detalhamento — Unidade e Representante</h2><p>Vendas, estoque, inadimplência e perda. Ordenado por Ativos (maior para o menor). Clique nos cabeçalhos para reordenar. Vendas mostram <b>Visão Placa / Visão Cliente</b>.</p></div>
     </div>
     <div class="card">
       <div class="table-controls">
@@ -368,11 +374,11 @@ function duoVendas(placaVal, clienteVal){ return num(placaVal) + ' / ' + num(cli
 function getColsBase(){
   return [
     ...(vendasDetalheMensal ? [
-      {key:'vendas_maio', keyCliente:'vendas_maio_cliente', label:'Vendas Maio (Placa/Cliente)', duo:true},
-      {key:'vendas_junho', keyCliente:'vendas_junho_cliente', label:'Vendas Junho (Placa/Cliente)', duo:true},
-      {key:'vendas_julho', keyCliente:'vendas_julho_cliente', label:'Vendas Julho (Placa/Cliente)', duo:true},
+      {key:'vendas_maio', keyCliente:'vendas_maio_cliente', label:'Vendas Maio', duo:true},
+      {key:'vendas_junho', keyCliente:'vendas_junho_cliente', label:'Vendas Junho', duo:true},
+      {key:'vendas_julho', keyCliente:'vendas_julho_cliente', label:'Vendas Julho', duo:true},
     ] : [
-      {key:'vendas_total_periodo', keyCliente:'vendas_total_periodo_cliente', label:'Vendas Mai+Jun+Jul (Placa/Cliente)', duo:true},
+      {key:'vendas_total_periodo', keyCliente:'vendas_total_periodo_cliente', label:'Vendas Mai+Jun+Jul', duo:true},
     ]),
     {key:'ativos', label:'Ativos', fmt:num},
     {key:'inadimplentes', label:'Inadimplentes', fmt:num},
@@ -452,13 +458,13 @@ function duo(placaVal, clienteVal, fmt){ return fmt(placaVal) + ' / ' + fmt(clie
 function getConvCols(){
   const cols = [{key:'nome', label:'Consultor'}, {key:'unidade', label:'Unidade'}];
   CONV.meses.forEach(m => {
-    cols.push({key:'cot_'+m, keyCliente:'cot_cliente_'+m, label:MLBL[m]+' — Cotado (Placa/Cliente)', fmt:num, duo:true});
-    cols.push({key:'fech_'+m, keyCliente:'fech_cliente_'+m, label:MLBL[m]+' — Fechado (Placa/Cliente)', fmt:num, duo:true});
-    cols.push({key:'conv_'+m, keyCliente:'conv_cliente_'+m, label:MLBL[m]+' — % Conv. (Placa/Cliente)', fmt:pctConv, duo:true, badgeConv:true});
+    cols.push({key:'cot_'+m, keyCliente:'cot_cliente_'+m, label:MLBL[m]+' · Cotado', fmt:num, duo:true});
+    cols.push({key:'fech_'+m, keyCliente:'fech_cliente_'+m, label:MLBL[m]+' · Fechado', fmt:num, duo:true});
+    cols.push({key:'conv_'+m, keyCliente:'conv_cliente_'+m, label:MLBL[m]+' · % Conv.', fmt:pctConv, duo:true, badgeConv:true});
   });
-  cols.push({key:'total_cotado', keyCliente:'total_cotado_cliente', label:'Total Cotado (Placa/Cliente)', fmt:num, duo:true});
-  cols.push({key:'total_fechado', keyCliente:'total_fechado_cliente', label:'Total Fechado (Placa/Cliente)', fmt:num, duo:true});
-  cols.push({key:'conversao', keyCliente:'conversao_cliente', label:'% Conversão Total (Placa/Cliente)', fmt:pctConv, duo:true, badgeConv:true});
+  cols.push({key:'total_cotado', keyCliente:'total_cotado_cliente', label:'Total Cotado', fmt:num, duo:true});
+  cols.push({key:'total_fechado', keyCliente:'total_fechado_cliente', label:'Total Fechado', fmt:num, duo:true});
+  cols.push({key:'conversao', keyCliente:'conversao_cliente', label:'% Conv. Total', fmt:pctConv, duo:true, badgeConv:true});
   return cols;
 }
 function pctConv(v){ return v===null||v===undefined ? '—' : pct(v); }
