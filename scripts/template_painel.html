@@ -251,7 +251,7 @@ function fmtDateBR(iso){ const [y,m,d]=iso.split('-'); return d+'/'+m+'/'+y; }
 document.getElementById('data-ultima').textContent = fmtDateBR(K.data_ultima_venda);
 
 function brl(v){ return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits:0}); }
-function num(v){ return v.toLocaleString('pt-BR'); }
+function num(v){ return (v==null?0:v).toLocaleString('pt-BR'); }
 function pct(v){ return (v*100).toLocaleString('pt-BR', {maximumFractionDigits:1}) + '%'; }
 
 /* ---------------- KPI CARDS ---------------- */

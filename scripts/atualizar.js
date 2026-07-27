@@ -53,7 +53,9 @@ try {
     log('consultores sem unidade (descartados): ' + res.diagnostico.consultoresSemUnidade.join(', '));
   res.data.meta.gerado_em = fmtBR(new Date());
 
-  let conversao = { consultores: [], totais: { total_cotado: 0, total_fechado: 0, conversao: 0, por_mes: {}, consultores: 0, sem_cotacao_registrada: 0 }, meses: ['2026-05', '2026-06', '2026-07'] };
+  let conversao = { consultores: [], totais: { total_cotado: 0, total_fechado: 0, conversao: 0,
+    total_cotado_cliente: 0, total_fechado_cliente: 0, conversao_cliente: 0,
+    por_mes: {}, consultores: 0, sem_cotacao_registrada: 0 }, meses: ['2026-05', '2026-06', '2026-07'] };
   if (cotacoes) {
     conversao = buildConversao(cotacoes.full, base.full, ate, res.data.representante);
     log('conversão calculada: ' + conversao.consultores.length + ' consultores (' + conversao.totais.sem_cotacao_registrada + ' sem cotação casada) | '
