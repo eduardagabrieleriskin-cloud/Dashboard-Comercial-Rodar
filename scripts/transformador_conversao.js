@@ -26,7 +26,7 @@ const XLSX = require('xlsx');
 
 const S = { codigo: 0, associado: 1, placa: 3, data: 4, franquia: 6, representante: 7, status: 8 };
 const B = { situacao: 16, placa: 26 };
-const MESES = ['2026-05', '2026-06', '2026-07'];
+const MESES = ['2026-05', '2026-06', '2026-07', '2026-08'];
 
 const np = s => (s || '').toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
 function norm(s) { return (s || '').toString().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim(); }
