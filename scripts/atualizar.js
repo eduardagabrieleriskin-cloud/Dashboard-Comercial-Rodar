@@ -14,8 +14,25 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const XLSX = require('xlsx');
 const buildBase = require('./transformador_base');
 const buildConversao = require('./transformador_conversao');
+
+// data mais recente presente no arquivo de cotações (coluna "Data solicitação", índice 4) —
+// evita que o corte "mesmo dia do mês" distorça a conversão quando o arquivo de cotações
+// está mais antigo que a BASE (ex: BASE de hoje mas cotações de alguns dias atrás)
+function maxDataCotacoes(xlsxPath) {
+  const wb = XLSX.readFile(xlsxPath);
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false }).slice(2);
+  let max = '';
+  for (const r of rows) {
+    const m = String(r[4] || '').match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    if (!m) continue;
+    const iso = m[3] + '-' + m[2] + '-' + m[1];
+    if (iso > max) max = iso;
+  }
+  return max;
+}
 
 const REPO = path.resolve(__dirname, '..');
 const DOWNLOADS = 'C:/Users/eduar/Downloads';
@@ -57,7 +74,10 @@ try {
     total_cotado_cliente: 0, total_fechado_cliente: 0, conversao_cliente: 0,
     por_mes: {}, consultores: 0, sem_cotacao_registrada: 0 }, meses: ['2026-05', '2026-06', '2026-07'] };
   if (cotacoes) {
-    conversao = buildConversao(cotacoes.full, base.full, ate, res.data.representante);
+    const maxCot = maxDataCotacoes(cotacoes.full);
+    const ateCotacoes = maxCot && maxCot < ate ? maxCot : ate;
+    if (ateCotacoes !== ate) log('cotações mais antigas que a BASE (até ' + maxCot + ') — usando essa data como corte, não "hoje".');
+    conversao = buildConversao(cotacoes.full, base.full, ateCotacoes, res.data.representante);
     log('conversão calculada: ' + conversao.consultores.length + ' consultores (' + conversao.totais.sem_cotacao_registrada + ' sem cotação casada) | '
       + conversao.totais.total_fechado + '/' + conversao.totais.total_cotado + ' (' + (conversao.totais.conversao * 100).toFixed(1) + '%)');
   } else {
