@@ -109,6 +109,7 @@ module.exports = function build(xlsxPath, ateISO) {
   // dias úteis do período de julho até "ate" para o ritmo
   const kpis = {
     data_ultima_venda: regs.filter(x => x.adesao && x.adesao <= ate).map(x => x.adesao).sort().pop() || ate,
+    data_referencia: ate, mes_atual: mesAtual, dia_corte: diaCorte,
     vendas_maio: vm, vendas_junho: vj, vendas_julho: vjl, vendas_agosto: vag,
     var_maio_junho_pct: variacaoJusta('2026-05', vm.qtde, '2026-06', vj.qtde),
     var_junho_julho_pct: variacaoJusta('2026-06', vj.qtde, '2026-07', vjl.qtde),

@@ -318,14 +318,18 @@ function miniCard(label, value, cls, sub, valueClass){
   </div>`;
 }
 
-const diaCorte = K.data_ultima_venda.slice(8,10);
+const mesAtualKpi = K.mes_atual;
+const diaCorte = K.dia_corte;
+function rotuloMes(mesIso, nomeMes){
+  return mesIso===mesAtualKpi ? `Vendas — ${nomeMes}/26 (parcial, até dia ${diaCorte})` : `Vendas — ${nomeMes}/26 (mês fechado)`;
+}
 let kpiHtml = '';
 kpiHtml += mainCard('Carteira em Vigor', K.carteira_qtde, K.carteira_valor, K.carteira_ticket_medio, '',
   num(K.ativos_qtde)+' Ativos + '+num(K.inadimplentes_qtde)+' Inadimplentes');
-kpiHtml += mainCard('Vendas — Maio/26 (até dia '+diaCorte+')', K.vendas_maio.qtde, K.vendas_maio.valor, K.vendas_maio.ticket_medio, 'blue', null);
-kpiHtml += mainCard('Vendas — Junho/26 (até dia '+diaCorte+')', K.vendas_junho.qtde, K.vendas_junho.valor, K.vendas_junho.ticket_medio, 'blue', null, K.var_maio_junho_pct);
-kpiHtml += mainCard('Vendas — Julho/26 (até dia '+diaCorte+')', K.vendas_julho.qtde, K.vendas_julho.valor, K.vendas_julho.ticket_medio, 'amber', null, K.var_junho_julho_pct);
-kpiHtml += mainCard('Vendas — Agosto/26 (até dia '+diaCorte+')', K.vendas_agosto.qtde, K.vendas_agosto.valor, K.vendas_agosto.ticket_medio, 'amber', null, K.var_julho_agosto_pct);
+kpiHtml += mainCard(rotuloMes('2026-05','Maio'), K.vendas_maio.qtde, K.vendas_maio.valor, K.vendas_maio.ticket_medio, 'blue', null);
+kpiHtml += mainCard(rotuloMes('2026-06','Junho'), K.vendas_junho.qtde, K.vendas_junho.valor, K.vendas_junho.ticket_medio, 'blue', null, K.var_maio_junho_pct);
+kpiHtml += mainCard(rotuloMes('2026-07','Julho'), K.vendas_julho.qtde, K.vendas_julho.valor, K.vendas_julho.ticket_medio, 'amber', null, K.var_junho_julho_pct);
+kpiHtml += mainCard(rotuloMes('2026-08','Agosto'), K.vendas_agosto.qtde, K.vendas_agosto.valor, K.vendas_agosto.ticket_medio, 'amber', null, K.var_julho_agosto_pct);
 
 kpiHtml += miniCard('Inadimplência', num(K.inadimplentes_qtde) + ' placas', 'red', pct(K.pct_inadimplencia) + ' — acumulado, da base toda de hoje');
 kpiHtml += miniCard('Taxa de Perda', pct(K.pct_perda), 'amber', num(K.cancelados_qtde+K.inativos_qtde) + ' canceladas/inativas — acumulado, da base toda de hoje');
