@@ -13,7 +13,10 @@ const XLSX = require('xlsx');
 
 const S = { associado: 1, placa: 7, data: 16, representante: 26 };
 
-function norm(s) { return (s || '').toString().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim(); }
+function norm(s) {
+  return (s || '').toString().replace(/^[A-Za-z]\/\s*/, '') // remove prefixo tipo "G/ " (grupo/franquia colado no nome)
+    .toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
 function tok(s) { return norm(s).split(' ').filter(Boolean); }
 function commonPrefix(ta, tb) { let n = 0; while (n < ta.length && n < tb.length && ta[n] === tb[n]) n++; return n; }
 function scoreNomes(rawName, baseName) {
