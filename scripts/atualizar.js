@@ -17,6 +17,66 @@ const { execSync } = require('child_process');
 const XLSX = require('xlsx');
 const buildBase = require('./transformador_base');
 const buildConversao = require('./transformador_conversao');
+const buildVendas = require('./transformador_vendas');
+
+const MESES = ['2026-05', '2026-06', '2026-07', '2026-08'];
+const MES_NOME = { '2026-05': 'maio', '2026-06': 'junho', '2026-07': 'julho', '2026-08': 'agosto' };
+
+// Substitui as contagens de "vendas" (placas fechadas) da BASE pelas do Controle de
+// Subscrição — validado com o Kauan/Daiane: a BASE só conta quem está "Ativo" hoje,
+// subcontando quem fechou no mês mas depois teve status alterado. Subscrição conta a
+// proposta pela data de transmissão, independente do status atual — é o número certo.
+// Valor/ticket médio continuam vindo da BASE (não houve validação separada para R$).
+function aplicarVendasDaSubscricao(res, subscricaoPath, ate) {
+  const { porRep, semMatch, registros } = buildVendas(subscricaoPath, res.data.representante, MESES);
+
+  res.data.representante.forEach(r => {
+    MESES.forEach(mIso => {
+      const nome = MES_NOME[mIso];
+      const b = porRep[r.nome][mIso];
+      r['vendas_' + nome] = b.placas;
+      r['vendas_' + nome + '_cliente'] = b.clientes.size;
+    });
+  });
+
+  // reagrega por unidade a partir dos representantes já atualizados
+  const porUnidade = {};
+  res.data.representante.forEach(r => {
+    const u = porUnidade[r.unidade] || (porUnidade[r.unidade] = {});
+    MESES.forEach(mIso => {
+      const nome = MES_NOME[mIso];
+      u['vendas_' + nome] = (u['vendas_' + nome] || 0) + r['vendas_' + nome];
+      u['vendas_' + nome + '_cliente'] = (u['vendas_' + nome + '_cliente'] || 0) + r['vendas_' + nome + '_cliente'];
+    });
+  });
+  res.data.unidade.forEach(u => Object.assign(u, porUnidade[u.nome] || {}));
+
+  // recalcula os totais de KPI (qtde/qtde_cliente) a partir da Subscrição; valor/ticket seguem da BASE
+  const K = res.data.kpis;
+  MESES.forEach(mIso => {
+    const nome = MES_NOME[mIso];
+    const totalPlacas = res.data.representante.reduce((s, r) => s + r['vendas_' + nome], 0);
+    const totalClientes = res.data.representante.reduce((s, r) => s + r['vendas_' + nome + '_cliente'], 0);
+    K['vendas_' + nome].qtde = totalPlacas;
+    K['vendas_' + nome].qtde_cliente = totalClientes;
+  });
+
+  // variação justa: mês fechado = total cheio; só o par que termina no mês atual usa o mesmo corte de dia
+  function qtdeAteDia(mesIso, dia) {
+    const limite = mesIso + '-' + String(dia).padStart(2, '0');
+    return registros.filter(x => x.mes === mesIso && x.dataISO <= limite).length;
+  }
+  function variacaoJusta(mesA, qtdeACheio, mesB, qtdeB) {
+    if (mesB !== K.mes_atual) return qtdeACheio ? +((qtdeB - qtdeACheio) / qtdeACheio).toFixed(4) : 0;
+    const base = qtdeAteDia(mesA, K.dia_corte);
+    return base ? +((qtdeB - base) / base).toFixed(4) : 0;
+  }
+  K.var_maio_junho_pct = variacaoJusta('2026-05', K.vendas_maio.qtde, '2026-06', K.vendas_junho.qtde);
+  K.var_junho_julho_pct = variacaoJusta('2026-06', K.vendas_junho.qtde, '2026-07', K.vendas_julho.qtde);
+  K.var_julho_agosto_pct = variacaoJusta('2026-07', K.vendas_julho.qtde, '2026-08', K.vendas_agosto.qtde);
+
+  return semMatch;
+}
 
 // data mais recente presente no arquivo de cotações (coluna "Data solicitação", índice 4) —
 // evita que o corte "mesmo dia do mês" distorça a conversão quando o arquivo de cotações
@@ -57,8 +117,10 @@ try {
   const base = acharMaisRecente(/^BASE_\d{8}.*\.xlsx$/i);
   if (!base) { log('nenhum BASE_*.xlsx em Downloads. Nada a fazer.'); process.exit(0); }
   const cotacoes = acharMaisRecente(/^Controle_de_Cota.*\.xlsx$/i);
+  const subscricao = acharMaisRecente(/^Controle_de_Subscri.*\.xlsx$/i);
 
-  const assinatura = base.f + '|' + Math.round(base.m) + '|' + (cotacoes ? cotacoes.f + '|' + Math.round(cotacoes.m) : 'sem-cotacoes');
+  const assinatura = base.f + '|' + Math.round(base.m) + '|' + (cotacoes ? cotacoes.f + '|' + Math.round(cotacoes.m) : 'sem-cotacoes')
+    + '|' + (subscricao ? subscricao.f + '|' + Math.round(subscricao.m) : 'sem-subscricao');
   const marca = fs.existsSync(MARKER) ? fs.readFileSync(MARKER, 'utf8').trim() : '';
   if (marca === assinatura) { log('fontes mais recentes já publicadas (' + base.f + (cotacoes ? ' + ' + cotacoes.f : '') + '). Nada novo.'); process.exit(0); }
 
@@ -69,6 +131,14 @@ try {
   if (res.diagnostico.consultoresSemUnidade.length)
     log('consultores sem unidade (descartados): ' + res.diagnostico.consultoresSemUnidade.join(', '));
   res.data.meta.gerado_em = fmtBR(new Date());
+
+  if (subscricao) {
+    const semMatch = aplicarVendasDaSubscricao(res, subscricao.full, ate);
+    log('vendas recalculadas a partir de ' + subscricao.f + ' (fonte validada — BASE subcontava quem saiu de "Ativo")'
+      + (semMatch.length ? ' | consultores da Subscrição sem match: ' + semMatch.join(', ') : ''));
+  } else {
+    log('AVISO: sem Controle_de_Subscrição em Downloads — vendas usam a BASE (pode subcontar).');
+  }
 
   let conversao = { consultores: [], totais: { total_cotado: 0, total_fechado: 0, conversao: 0,
     total_cotado_cliente: 0, total_fechado_cliente: 0, conversao_cliente: 0,
@@ -108,7 +178,7 @@ try {
   if (!execSync('git status --porcelain', { cwd: REPO }).toString().trim()) {
     log('sem mudanças para commitar.'); fs.writeFileSync(MARKER, assinatura); process.exit(0);
   }
-  execSync('git commit -m "auto: painel a partir de ' + base.f + (cotacoes ? ' + ' + cotacoes.f : '') + ' (dados ate ' + ate + ')"', { cwd: REPO });
+  execSync('git commit -m "auto: painel a partir de ' + base.f + (subscricao ? ' + ' + subscricao.f : '') + (cotacoes ? ' + ' + cotacoes.f : '') + ' (dados ate ' + ate + ')"', { cwd: REPO });
   execSync('git push origin main', { cwd: REPO });
   fs.writeFileSync(MARKER, assinatura);
   log('PUBLICADO com sucesso (GitHub + Vercel via git).');

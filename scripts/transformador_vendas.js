@@ -1,0 +1,67 @@
+/*
+ * Calcula "Vendas" (placas fechadas) por mês, por consultor/unidade, a partir do
+ * Controle de Subscrição V2 (PPM) — validado com a Daiane/Kauan como a fonte
+ * correta de "fechou" (conta a proposta pela data de transmissão, não depende
+ * do status "Ativo" na foto de hoje da BASE, que subcontava).
+ *
+ * O nome do representante no arquivo do PPM vem truncado em 30 caracteres —
+ * mesmo casamento de nomes usado no transformador_conversao.js.
+ *
+ * Uso: build(subscricaoXlsx, representantesBase, meses) -> Map nome -> {mes: {placa, clientes:Set}}
+ */
+const XLSX = require('xlsx');
+
+const S = { associado: 1, placa: 7, data: 16, representante: 26 };
+
+function norm(s) { return (s || '').toString().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim(); }
+function tok(s) { return norm(s).split(' ').filter(Boolean); }
+function commonPrefix(ta, tb) { let n = 0; while (n < ta.length && n < tb.length && ta[n] === tb[n]) n++; return n; }
+function scoreNomes(rawName, baseName) {
+  const nc = norm(rawName), nb = norm(baseName);
+  if (nc === nb) return 1000;
+  if (nc.length >= 28 && nb.startsWith(nc)) return 900;
+  if (nb.length >= 28 && nc.startsWith(nb)) return 900;
+  const tc = tok(rawName), tb = tok(baseName);
+  let s = commonPrefix(tc, tb);
+  if (s < 2 && tc.length >= 2 && tb.length >= 2 && tc[0] === tb[0] && tc[tc.length - 1] === tb[tb.length - 1]) s = 2;
+  return s;
+}
+function iso(s) { if (!s) return null; const m = String(s).match(/(\d{2})\/(\d{2})\/(\d{4})/); return m ? m[3] + '-' + m[2] + '-' + m[1] : null; }
+
+module.exports = function build(subscricaoXlsx, representantesBase, meses) {
+  const wb = XLSX.readFile(subscricaoXlsx);
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false }).slice(2);
+
+  const nomesBase = representantesBase.map(r => r.nome);
+  const rawNomes = [...new Set(rows.map(r => (r[S.representante] || '').trim()).filter(Boolean))];
+  const destino = {};
+  for (const rn of rawNomes) {
+    const scored = nomesBase.map(bn => ({ bn, s: scoreNomes(rn, bn) })).filter(x => x.s > 0).sort((a, b) => b.s - a.s);
+    if (!scored.length) continue;
+    const top = scored[0].s;
+    if (scored.filter(x => x.s === top).length > 1) continue; // empate -> descarta
+    destino[rn] = scored[0].bn;
+  }
+
+  // por representante: { mes: { placas: n, clientes: Set } }
+  const porRep = {};
+  representantesBase.forEach(r => { porRep[r.nome] = {}; meses.forEach(m => porRep[r.nome][m] = { placas: 0, clientes: new Set() }); });
+
+  const semMatch = new Set();
+  const registros = []; // {alvo, mes, dataISO, associado} — para recálculos flexíveis (ex: comparação justa por dia)
+  for (const r of rows) {
+    const d = iso(r[S.data]);
+    if (!d) continue;
+    const mes = d.slice(0, 7);
+    if (!meses.includes(mes)) continue;
+    const raw = (r[S.representante] || '').trim();
+    const alvo = destino[raw];
+    if (!alvo) { if (raw) semMatch.add(raw); continue; }
+    const bucket = porRep[alvo][mes];
+    bucket.placas++;
+    bucket.clientes.add(norm(r[S.associado]));
+    registros.push({ alvo, mes, dataISO: d, associado: norm(r[S.associado]) });
+  }
+
+  return { porRep, semMatch: [...semMatch], registros };
+};
