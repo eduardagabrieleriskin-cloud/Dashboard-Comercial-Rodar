@@ -25,8 +25,19 @@
 const XLSX = require('xlsx');
 
 const S = { codigo: 0, associado: 1, placa: 3, data: 4, franquia: 6, representante: 7, status: 8 };
-const B = { situacao: 16, placa: 26 };
 const MESES = ['2026-05', '2026-06', '2026-07', '2026-08'];
+
+// índices das colunas do BASE resolvidos por nome (não por posição fixa) — o Siprov já
+// mudou a ordem/qtde de colunas entre exportações (ver transformador_base.js).
+function resolverColunasBase(headerRow) {
+  const norm = s => (s || '').toString().trim().toUpperCase();
+  const acha = nome => {
+    const i = headerRow.findIndex(h => norm(h) === norm(nome));
+    if (i === -1) throw new Error('coluna não encontrada no BASE: "' + nome + '" (leiaute do Siprov mudou?)');
+    return i;
+  };
+  return { situacao: acha('BENEFÍCIO - SITUAÇÃO ATUAL'), placa: acha('VEÍCULO - PLACA DO VEÍCULO') };
+}
 
 const np = s => (s || '').toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
 function norm(s) { return (s || '').toString().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim(); }
@@ -60,7 +71,9 @@ module.exports = function build(cotacoesXlsx, baseXlsx, ateISO, representantesBa
 
   // fechamentos: placas ativas/inadimplentes na BASE
   const wbB = XLSX.readFile(baseXlsx);
-  const base = XLSX.utils.sheet_to_json(wbB.Sheets[wbB.SheetNames[0]], { header: 1, raw: false }).slice(2);
+  const todasLinhasBase = XLSX.utils.sheet_to_json(wbB.Sheets[wbB.SheetNames[0]], { header: 1, raw: false });
+  const B = resolverColunasBase(todasLinhasBase[1]);
+  const base = todasLinhasBase.slice(2);
   const fechadas = new Set();
   for (const r of base) {
     const p = np(r[B.placa]);

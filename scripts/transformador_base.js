@@ -16,8 +16,30 @@ const path = require('path');
 
 const MAPA = JSON.parse(fs.readFileSync(path.join(__dirname, 'mapa_unidades.json'), 'utf8'));
 
-// colunas (0-indexed) do BASE
-const C = { cpfAssociado: 0, situacao: 16, valorAjust: 19, placa: 26, cpfConsultor: 31, adesao: 32, loja: 36, consultor: 38 };
+// nomes das colunas no cabeçalho do BASE (linha 2 da planilha) — resolvidos para índice
+// em tempo de execução, porque o Siprov já mudou a ordem/qtde de colunas entre exportações
+// (ex.: layout de 04/08 tinha índices diferentes do layout de 10/08). Buscar por nome evita
+// que uma mudança de leiaute quebre o pipeline silenciosamente (tudo cairia a zero).
+const NOMES_COLUNA = {
+  cpfAssociado: 'ASSOCIADO - CPF/CNPJ',
+  situacao: 'BENEFÍCIO - SITUAÇÃO ATUAL',
+  valorAjust: 'BENEFÍCIO - VALOR DA MENSALIDADE AJUSTADA',
+  placa: 'VEÍCULO - PLACA DO VEÍCULO',
+  cpfConsultor: 'BENEFÍCIO - CPF/CNPJ DO CONSULTOR',
+  adesao: 'BENEFÍCIO - DATA DE ADESÃO',
+  loja: 'BENEFÍCIO - LOJA - NOME FANTASIA',
+  consultor: 'BENEFÍCIO - NOME DO CONSULTOR',
+};
+function resolverColunas(headerRow) {
+  const norm = s => (s || '').toString().trim().toUpperCase();
+  const idx = {};
+  for (const [chave, nomeCol] of Object.entries(NOMES_COLUNA)) {
+    const i = headerRow.findIndex(h => norm(h) === norm(nomeCol));
+    if (i === -1) throw new Error('coluna não encontrada no BASE: "' + nomeCol + '" (leiaute do Siprov mudou?)');
+    idx[chave] = i;
+  }
+  return idx;
+}
 const MESES = ['2026-05', '2026-06', '2026-07', '2026-08'];
 
 function titleCase(s) {
@@ -48,7 +70,9 @@ function toNum(v) {
 
 module.exports = function build(xlsxPath, ateISO) {
   const wb = XLSX.readFile(xlsxPath);
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false }).slice(2);
+  const todasLinhas = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false });
+  const C = resolverColunas(todasLinhas[1]); // linha 0 = título "BASE", linha 1 = cabeçalho real
+  const rows = todasLinhas.slice(2);
   const SITU_VALIDAS = ['Ativo', 'Inadimplente', 'Cancelado', 'Inativo', 'Pendente'];
   const dropConsultores = new Set();
 
