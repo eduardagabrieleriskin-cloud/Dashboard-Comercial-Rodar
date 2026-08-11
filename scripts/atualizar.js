@@ -129,7 +129,8 @@ try {
 
   const res = buildBase(base.full, ate);
   if (res.diagnostico.consultoresSemUnidade.length)
-    log('consultores sem unidade (descartados): ' + res.diagnostico.consultoresSemUnidade.join(', '));
+    log('AVISO: consultores sem unidade no mapa (caem em "(Sem Unidade)", NÃO são descartados — atualizar mapa_unidades.json): '
+      + res.diagnostico.consultoresSemUnidade.join(', '));
   res.data.meta.gerado_em = fmtBR(new Date());
 
   if (subscricao) {
@@ -164,8 +165,9 @@ try {
   const jc = html.match(/<script id="conversao-data" type="application\/json">([\s\S]*?)<\/script>/);
   JSON.parse(jc[1]);
   if (html.length < 20000) throw new Error('HTML suspeitosamente pequeno');
+  // "(Sem Unidade)" agora é um grupo válido (não descartamos mais o registro) — só avisa, não bloqueia o deploy.
   const semU = res.data.representante.filter(r => !r.unidade || r.unidade === '(Sem Unidade)');
-  if (semU.length) throw new Error('representantes sem unidade: ' + semU.map(r => r.nome).join(', '));
+  if (semU.length) log('AVISO: representantes em "(Sem Unidade)": ' + semU.map(r => r.nome).join(', '));
   const acima100 = conversao.consultores.filter(c => c.total_fechado > c.total_cotado);
   if (acima100.length) throw new Error('conversão >100% em: ' + acima100.map(c => c.nome).join(', '));
 

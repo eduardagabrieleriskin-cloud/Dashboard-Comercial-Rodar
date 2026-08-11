@@ -87,11 +87,14 @@ module.exports = function build(xlsxPath, ateISO) {
     const consultor = titleCase(r[C.consultor]);
     const loja = r[C.loja];
     if (ehTeste(r[C.consultor], loja)) continue;                 // fora testes
+    // sem unidade mapeada (ou sem consultor) => cai em "(Sem Unidade)"/"(Sem Representante)", NÃO descarta o
+    // registro — descartar fazia o total da carteira ficar abaixo do real (bug encontrado em 10/08: faltavam ~80
+    // placas porque consultores novos ainda não estavam no mapa_unidades.json).
     const unidadeRaw = MAPA[(r[C.consultor] || '').toString().trim().toUpperCase()];
-    if (!unidadeRaw) { if (consultor) dropConsultores.add(consultor); continue; } // sem unidade => fora (regra)
-    const unidade = canonicalizeUnidade(unidadeRaw);
+    if (!unidadeRaw && consultor) dropConsultores.add(consultor); // ainda loga pra gente atualizar o mapa depois
+    const unidade = unidadeRaw ? canonicalizeUnidade(unidadeRaw) : '(Sem Unidade)';
     regs.push({
-      situacao, consultor, unidade,
+      situacao, consultor: consultor || '(Sem Representante)', unidade,
       cpfAssociado: (r[C.cpfAssociado] || '').toString().trim(),
       adesao: parseISO(r[C.adesao]),
       valor: toNum(r[C.valorAjust]),

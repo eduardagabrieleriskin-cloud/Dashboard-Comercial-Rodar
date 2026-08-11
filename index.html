@@ -141,11 +141,11 @@
       </div>
       <div>
         <div class="eyebrow">Rodar Mutual · Diretoria Comercial</div>
-        <h1>Painel Comercial — Maio, Junho &amp; Julho 2026</h1>
+        <h1>Painel Comercial</h1>
       </div>
     </div>
     <div class="header-meta">
-      Vendas (adesões) até <b id="data-ultima"></b> · Julho ainda em andamento<br>
+      Vendas (adesões) até <b id="data-ultima"></b> · <span id="mes-andamento"></span><br>
       Unidade: cadastro de subscrição (Franquia)<br>
       Gerado em <b id="gen-date"></b>
     </div>
@@ -290,6 +290,12 @@ const CONV = JSON.parse(document.getElementById('conversao-data').textContent);
 document.getElementById('gen-date').textContent = DATA.meta.gerado_em;
 function fmtDateBR(iso){ const [y,m,d]=iso.split('-'); return d+'/'+m+'/'+y; }
 document.getElementById('data-ultima').textContent = fmtDateBR(K.data_ultima_venda);
+(function(){
+  const NOMES_MES = {'01':'Janeiro','02':'Fevereiro','03':'Março','04':'Abril','05':'Maio','06':'Junho',
+    '07':'Julho','08':'Agosto','09':'Setembro','10':'Outubro','11':'Novembro','12':'Dezembro'};
+  const mm = (K.mes_atual || '').split('-')[1];
+  document.getElementById('mes-andamento').textContent = (NOMES_MES[mm] || '') + ' ainda em andamento';
+})();
 
 function brl(v){ return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL', maximumFractionDigits:0}); }
 function num(v){ return (v==null?0:v).toLocaleString('pt-BR'); }
@@ -305,7 +311,7 @@ function mainCard(label, qtde, valor, ticket, cls, note, variacao){
     <div class="kpi-label">${label}</div>
     <div class="kpi-value">${num(qtde)}</div>
     ${note?`<div class="kpi-sub"><span style="color:var(--muted); font-style:italic;">${note}</span></div>`:''}
-    <div class="kpi-sub"><span>Valor</span><b>${brl(valor)}</b></div>
+    ${valor!=null?`<div class="kpi-sub"><span>Valor</span><b>${brl(valor)}</b></div>`:''}
     <div class="kpi-sub"><span>Ticket médio</span><b>${brl(ticket)}</b></div>
     ${varHtml}
   </div>`;
@@ -324,7 +330,7 @@ function rotuloMes(mesIso, nomeMes){
   return mesIso===mesAtualKpi ? `Vendas — ${nomeMes}/26 (parcial, até dia ${diaCorte})` : `Vendas — ${nomeMes}/26 (mês fechado)`;
 }
 let kpiHtml = '';
-kpiHtml += mainCard('Carteira em Vigor', K.carteira_qtde, K.carteira_valor, K.carteira_ticket_medio, '',
+kpiHtml += mainCard('Carteira em Vigor', K.carteira_qtde, null, K.carteira_ticket_medio, '',
   num(K.ativos_qtde)+' Ativos + '+num(K.inadimplentes_qtde)+' Inadimplentes');
 kpiHtml += mainCard(rotuloMes('2026-05','Maio'), K.vendas_maio.qtde, K.vendas_maio.valor, K.vendas_maio.ticket_medio, 'blue', null);
 kpiHtml += mainCard(rotuloMes('2026-06','Junho'), K.vendas_junho.qtde, K.vendas_junho.valor, K.vendas_junho.ticket_medio, 'blue', null, K.var_maio_junho_pct);
