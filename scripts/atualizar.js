@@ -124,7 +124,7 @@ try {
   const marca = fs.existsSync(MARKER) ? fs.readFileSync(MARKER, 'utf8').trim() : '';
   if (marca === assinatura) { log('fontes mais recentes já publicadas (' + base.f + (cotacoes ? ' + ' + cotacoes.f : '') + '). Nada novo.'); process.exit(0); }
 
-  const ate = isoHoje();
+  const ate = process.env.ATE_OVERRIDE || isoHoje(); // ATE_OVERRIDE=YYYY-MM-DD força o corte (ex: "até ontem" pedido manualmente)
   log('fonte BASE: ' + base.f + ' | fonte Cotações: ' + (cotacoes ? cotacoes.f : '(nenhuma)') + ' | até ' + ate);
 
   const res = buildBase(base.full, ate);
