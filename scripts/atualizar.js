@@ -134,7 +134,28 @@ try {
   const ate = process.env.ATE_OVERRIDE || isoHoje(); // ATE_OVERRIDE=YYYY-MM-DD força o corte (ex: "até ontem" pedido manualmente)
   log('fonte BASE: ' + base.f + ' | fonte Cotações: ' + (cotacoes ? cotacoes.f : '(nenhuma)') + ' | até ' + ate);
 
-  const res = buildBase(base.full, ate);
+  // "Relatório de Subscrição" (export diferente do Controle de Subscrição V2): traz Franqueado por
+  // associado, usado só para descobrir a UNIDADE linha a linha quando o Siprov exporta o consultor vazio.
+  // NÃO serve para contar vendas — ali cada linha é 1 proposta (pode cobrir várias placas), o que daria
+  // ~metade das placas reais. Opcional: sem ele, a unidade cai no voto por agência.
+  let cpfAssoc2unidade = null;
+  const relSubscricao = acharMaisRecente(/^Relat[óo]rio de Subscri.*\.xlsx$/i);
+  if (relSubscricao) {
+    const wbR = XLSX.readFile(relSubscricao.full);
+    const rowsR = XLSX.utils.sheet_to_json(wbR.Sheets[wbR.SheetNames[0]], { header: 1, raw: false }).slice(2);
+    const votos = {};
+    for (const r of rowsR) {
+      const cpf = String(r[3] || '').replace(/\D/g, '');
+      const franq = String(r[9] || '').trim();
+      if (!cpf || !franq) continue;
+      (votos[cpf] || (votos[cpf] = {}))[franq] = (votos[cpf][franq] || 0) + 1;
+    }
+    cpfAssoc2unidade = {};
+    for (const [cpf, v] of Object.entries(votos)) cpfAssoc2unidade[cpf] = Object.entries(v).sort((a, b) => b[1] - a[1])[0][0];
+    log('unidade por associado carregada de ' + relSubscricao.f + ' (' + Object.keys(cpfAssoc2unidade).length + ' CPFs)');
+  }
+
+  const res = buildBase(base.full, ate, cpfAssoc2unidade);
   if (res.diagnostico.consultoresSemUnidade.length)
     log('AVISO: consultores sem unidade no mapa (caem em "(Sem Unidade)", NÃO são descartados — atualizar mapa_unidades.json): '
       + res.diagnostico.consultoresSemUnidade.join(', '));

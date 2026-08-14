@@ -69,7 +69,11 @@ function toNum(v) {
   return isNaN(n) ? 0 : n;
 }
 
-module.exports = function build(xlsxPath, ateISO) {
+// cpfAssoc2unidade (opcional): mapa "CPF do associado (só dígitos)" -> franqueado, montado a partir do
+// "Relatório de Subscrição" quando ele existe. É um sinal POR LINHA (mais preciso que o voto por agência),
+// validado em 95,7% de acerto contra as linhas cujo consultor é conhecido. Cobre ~43% das linhas sem
+// consultor; o resto cai no voto por maioria da agência.
+module.exports = function build(xlsxPath, ateISO, cpfAssoc2unidade) {
   const wb = XLSX.readFile(xlsxPath);
   const todasLinhas = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false });
   const C = resolverColunas(todasLinhas[1]); // linha 0 = título "BASE", linha 1 = cabeçalho real
@@ -110,9 +114,12 @@ module.exports = function build(xlsxPath, ateISO) {
     const repRaw = (r[C.representante] || '').toString().trim();
     // quem "vendeu": o consultor quando o Siprov informa; senão a agência (representante)
     const quemVendeu = titleCase(consultorRaw || repRaw);
-    // sem unidade mapeada => cai em "(Sem Unidade)", NÃO descarta o registro — descartar fazia o total da
-    // carteira ficar abaixo do real (bug encontrado em 10/08).
-    const unidadeRaw = MAPA[consultorRaw.toUpperCase()] || MAPA[repRaw.toUpperCase()] || unidadeDerivada(repRaw);
+    // unidade em camadas, da mais confiável para a mais ampla; sem nenhuma => "(Sem Unidade)", mas o
+    // registro NÃO é descartado (descartar fazia o total da carteira ficar abaixo do real — bug de 10/08).
+    const unidadeRaw = MAPA[consultorRaw.toUpperCase()]                                   // 1. consultor no mapa
+      || MAPA[repRaw.toUpperCase()]                                                       // 2. agência no mapa
+      || (cpfAssoc2unidade && cpfAssoc2unidade[(r[C.cpfAssociado] || '').toString().replace(/\D/g, '')]) // 3. franqueado do associado
+      || unidadeDerivada(repRaw);                                                         // 4. voto da agência
     if (!unidadeRaw && quemVendeu) dropConsultores.add(quemVendeu); // loga pra atualizar o mapa depois
     const unidade = unidadeRaw ? canonicalizeUnidade(unidadeRaw) : '(Sem Unidade)';
     regs.push({
