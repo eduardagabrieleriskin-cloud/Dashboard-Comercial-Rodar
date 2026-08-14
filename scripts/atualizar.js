@@ -117,7 +117,14 @@ try {
   const base = acharMaisRecente(/^BASE_\d{8}.*\.xlsx$/i);
   if (!base) { log('nenhum BASE_*.xlsx em Downloads. Nada a fazer.'); process.exit(0); }
   const cotacoes = acharMaisRecente(/^Controle_de_Cota.*\.xlsx$/i);
-  const subscricao = acharMaisRecente(/^Controle_de_Subscri.*\.xlsx$/i);
+  let subscricao = acharMaisRecente(/^Controle_de_Subscri.*\.xlsx$/i);
+  if (subscricao) {
+    // arquivo pode ter sido exportado vazio (só título+cabeçalho, 0 linhas de dado) — nesse caso
+    // NÃO usar (senão zera as vendas de todo mundo); cai no fallback via BASE, com aviso.
+    const wbSub = XLSX.readFile(subscricao.full);
+    const nRows = XLSX.utils.sheet_to_json(wbSub.Sheets[wbSub.SheetNames[0]], { header: 1, raw: false }).slice(2).length;
+    if (nRows === 0) { log('AVISO: ' + subscricao.f + ' está vazio (0 linhas de dado) — ignorando, vendas usam a BASE.'); subscricao = null; }
+  }
 
   const assinatura = base.f + '|' + Math.round(base.m) + '|' + (cotacoes ? cotacoes.f + '|' + Math.round(cotacoes.m) : 'sem-cotacoes')
     + '|' + (subscricao ? subscricao.f + '|' + Math.round(subscricao.m) : 'sem-subscricao');
