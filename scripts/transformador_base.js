@@ -63,17 +63,24 @@ function parseISO(d) {
   if (p.length !== 3) return null;
   return p[2] + '-' + p[1].padStart(2, '0') + '-' + p[0].padStart(2, '0');
 }
+function normPlaca(v) {
+  const p = (v == null ? '' : v).toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return p.length >= 6 ? p : '';
+}
 function toNum(v) {
   if (v == null || v === '') return 0;
   const n = parseFloat(v.toString().replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'));
   return isNaN(n) ? 0 : n;
 }
 
-// cpfAssoc2unidade (opcional): mapa "CPF do associado (só dígitos)" -> franqueado, montado a partir do
-// "Relatório de Subscrição" quando ele existe. É um sinal POR LINHA (mais preciso que o voto por agência),
-// validado em 95,7% de acerto contra as linhas cujo consultor é conhecido. Cobre ~43% das linhas sem
-// consultor; o resto cai no voto por maioria da agência.
-module.exports = function build(xlsxPath, ateISO, cpfAssoc2unidade) {
+// sinais (opcional): mapas auxiliares para preencher o que o Siprov deixou em branco.
+//   placa2rep       - PLACA -> nome do representante (Controle de Subscrição V2). Chave EXATA.
+//   placa2unidade   - PLACA -> franquia (mesma fonte).
+//   cpfAssoc2unidade- CPF do associado -> franqueado ("Relatório de Subscrição"), sinal mais fraco.
+// Regra de precedência: o que a BASE informa SEMPRE vence; estes sinais só preenchem lacunas. Isso mantém
+// a BASE como sistema de registro da carteira e evita reatribuir placas que o ERP já tem definidas.
+module.exports = function build(xlsxPath, ateISO, sinais) {
+  const { placa2rep = {}, placa2unidade = {}, cpfAssoc2unidade = null } = sinais || {};
   const wb = XLSX.readFile(xlsxPath);
   const todasLinhas = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false });
   const C = resolverColunas(todasLinhas[1]); // linha 0 = título "BASE", linha 1 = cabeçalho real
@@ -112,23 +119,34 @@ module.exports = function build(xlsxPath, ateISO, cpfAssoc2unidade) {
     if (ehTeste(r[C.consultor], loja)) continue;                 // fora testes
     const consultorRaw = (r[C.consultor] || '').toString().trim();
     const repRaw = (r[C.representante] || '').toString().trim();
-    // quem "vendeu": o consultor quando o Siprov informa; senão a agência (representante)
-    const quemVendeu = titleCase(consultorRaw || repRaw);
+    const placa = normPlaca(r[C.placa]);
+    // Quem vendeu, em camadas: o consultor da BASE manda; sem ele, busca a PESSOA pela placa na Subscrição;
+    // só então cai na agência. Sem a camada da placa, 2.2k placas ficavam na PJ (com zero vendas) enquanto
+    // as vendas iam para a pessoa — estoque e venda do mesmo negócio em linhas diferentes.
+    const quemVendeu = titleCase(consultorRaw || (placa && placa2rep[placa]) || repRaw);
     // unidade em camadas, da mais confiável para a mais ampla; sem nenhuma => "(Sem Unidade)", mas o
     // registro NÃO é descartado (descartar fazia o total da carteira ficar abaixo do real — bug de 10/08).
     const unidadeRaw = MAPA[consultorRaw.toUpperCase()]                                   // 1. consultor no mapa
       || MAPA[repRaw.toUpperCase()]                                                       // 2. agência no mapa
-      || (cpfAssoc2unidade && cpfAssoc2unidade[(r[C.cpfAssociado] || '').toString().replace(/\D/g, '')]) // 3. franqueado do associado
-      || unidadeDerivada(repRaw);                                                         // 4. voto da agência
+      || (placa && placa2unidade[placa])                                                  // 3. franquia da placa
+      || (cpfAssoc2unidade && cpfAssoc2unidade[(r[C.cpfAssociado] || '').toString().replace(/\D/g, '')]) // 4. franqueado do associado
+      || unidadeDerivada(repRaw);                                                         // 5. voto da agência
     if (!unidadeRaw && quemVendeu) dropConsultores.add(quemVendeu); // loga pra atualizar o mapa depois
     const unidade = unidadeRaw ? canonicalizeUnidade(unidadeRaw) : '(Sem Unidade)';
     regs.push({
-      situacao, consultor: quemVendeu || '(Sem Representante)', unidade,
+      situacao, consultor: quemVendeu || '(Sem Representante)', unidade, placa,
       cpfAssociado: (r[C.cpfAssociado] || '').toString().trim(),
       adesao: parseISO(r[C.adesao]),
       valor: toNum(r[C.valorAjust]),
     });
   }
+
+  // PLACA -> representante já canonicalizado. As vendas (transformador_vendas) usam este mapa para
+  // atribuir cada subscrição à MESMA pessoa que detém a placa aqui — sem isso, estoque e venda do mesmo
+  // negócio caem em linhas diferentes (e variações de nome tipo "Hugo Sigaki"/"Hugo Eity Felix Sigaki"
+  // viram dois representantes distintos).
+  const placaParaRepresentante = {};
+  regs.forEach(x => { if (x.placa) placaParaRepresentante[x.placa] = x.consultor; });
 
   const ate = ateISO || '2026-12-31';
   // meses fechados mostram total do mês inteiro; só o mês atual (o de "ate") é parcial por natureza.
@@ -244,6 +262,7 @@ module.exports = function build(xlsxPath, ateISO, cpfAssoc2unidade) {
 
   return {
     data: { kpis, unidade, representante, daily, meta: { gerado_em: '__HOJE__', periodo: 'Maio a Agosto de 2026 (até ' + ate.split('-').reverse().join('/') + ')' } },
+    placaParaRepresentante,
     diagnostico: { registros: regs.length, consultoresSemUnidade: [...dropConsultores] }
   };
 };

@@ -28,7 +28,7 @@ const MES_NOME = { '2026-05': 'maio', '2026-06': 'junho', '2026-07': 'julho', '2
 // proposta pela data de transmissão, independente do status atual — é o número certo.
 // Valor/ticket médio continuam vindo da BASE (não houve validação separada para R$).
 function aplicarVendasDaSubscricao(res, subscricaoPath, ate) {
-  const { porRep, semMatch, registros } = buildVendas(subscricaoPath, res.data.representante, MESES);
+  const { porRep, semMatch, registros } = buildVendas(subscricaoPath, res.data.representante, MESES, res.placaParaRepresentante);
 
   res.data.representante.forEach(r => {
     MESES.forEach(mIso => {
@@ -155,7 +155,25 @@ try {
     log('unidade por associado carregada de ' + relSubscricao.f + ' (' + Object.keys(cpfAssoc2unidade).length + ' CPFs)');
   }
 
-  const res = buildBase(base.full, ate, cpfAssoc2unidade);
+  // Controle de Subscrição V2: PLACA -> representante/franquia. Chave exata, usada para preencher o que o
+  // Siprov exportou vazio (ver transformador_base). Colunas: 7=Placa(s), 24=Franquia, 26=Representante.
+  const placa2rep = {}, placa2unidade = {};
+  if (subscricao) {
+    const wbSub = XLSX.readFile(subscricao.full);
+    const rowsSub = XLSX.utils.sheet_to_json(wbSub.Sheets[wbSub.SheetNames[0]], { header: 1, raw: false }).slice(2);
+    for (const r of rowsSub) {
+      const rep = String(r[26] || '').trim(), franq = String(r[24] || '').trim();
+      for (const p of String(r[7] || '').split(/[\s,\/]+/)) {
+        const pn = p.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (pn.length < 6) continue;
+        if (rep) placa2rep[pn] = rep;
+        if (franq) placa2unidade[pn] = franq;
+      }
+    }
+    log('placas mapeadas na Subscrição: ' + Object.keys(placa2rep).length + ' (representante) / ' + Object.keys(placa2unidade).length + ' (franquia)');
+  }
+
+  const res = buildBase(base.full, ate, { placa2rep, placa2unidade, cpfAssoc2unidade });
   if (res.diagnostico.consultoresSemUnidade.length)
     log('AVISO: consultores sem unidade no mapa (caem em "(Sem Unidade)", NÃO são descartados — atualizar mapa_unidades.json): '
       + res.diagnostico.consultoresSemUnidade.join(', '));
@@ -168,6 +186,13 @@ try {
   } else {
     log('AVISO: sem Controle_de_Subscrição em Downloads — vendas usam a BASE (pode subcontar).');
   }
+
+  // representantes/unidades sem NADA no período (0 na carteira e 0 vendas nos 4 meses) só poluem a tabela
+  const vazio = x => !x.total && MESES.every(m => !x['vendas_' + MES_NOME[m]]);
+  const removidos = res.data.representante.filter(vazio).map(x => x.nome);
+  res.data.representante = res.data.representante.filter(x => !vazio(x));
+  res.data.unidade = res.data.unidade.filter(x => !vazio(x));
+  if (removidos.length) log('representantes sem movimento no período (removidos da tabela): ' + removidos.join(', '));
 
   let conversao = { consultores: [], totais: { total_cotado: 0, total_fechado: 0, conversao: 0,
     total_cotado_cliente: 0, total_fechado_cliente: 0, conversao_cliente: 0,

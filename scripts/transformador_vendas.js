@@ -31,7 +31,17 @@ function scoreNomes(rawName, baseName) {
 }
 function iso(s) { if (!s) return null; const m = String(s).match(/(\d{2})\/(\d{2})\/(\d{4})/); return m ? m[3] + '-' + m[2] + '-' + m[1] : null; }
 
-module.exports = function build(subscricaoXlsx, representantesBase, meses) {
+// placaParaRepresentante (opcional): PLACA -> representante já canonicalizado pela BASE. Quando a placa da
+// subscrição existe na BASE, a venda é atribuída a QUEM DETÉM A PLACA lá — não ao nome escrito no PPM.
+// Isso mantém estoque e venda do mesmo negócio na mesma linha e resolve, de uma vez: (a) variações de nome
+// ("Hugo Sigaki" vs "Hugo Eity Felix Sigaki"), (b) divergência de atribuição entre os dois sistemas — a BASE
+// vence por ser o sistema de registro da carteira. O casamento por nome fica só como fallback.
+module.exports = function build(subscricaoXlsx, representantesBase, meses, placaParaRepresentante) {
+  const P2R = placaParaRepresentante || {};
+  const normPlaca = v => {
+    const p = (v == null ? '' : v).toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return p.length >= 6 ? p : '';
+  };
   const wb = XLSX.readFile(subscricaoXlsx);
   const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false }).slice(2);
 
@@ -58,8 +68,14 @@ module.exports = function build(subscricaoXlsx, representantesBase, meses) {
     const mes = d.slice(0, 7);
     if (!meses.includes(mes)) continue;
     const raw = (r[S.representante] || '').trim();
-    const alvo = destino[raw];
-    if (!alvo) { if (raw) semMatch.add(raw); continue; }
+    // 1) pela PLACA na BASE (exato); 2) fallback: casamento por nome
+    let alvo = null;
+    for (const p of String(r[S.placa] || '').split(/[\s,\/]+/)) {
+      const pn = normPlaca(p);
+      if (pn && P2R[pn]) { alvo = P2R[pn]; break; }
+    }
+    if (!alvo) alvo = destino[raw];
+    if (!alvo || !porRep[alvo]) { if (raw) semMatch.add(raw); continue; }
     const bucket = porRep[alvo][mes];
     bucket.placas++;
     bucket.clientes.add(norm(r[S.associado]));
