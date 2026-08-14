@@ -110,6 +110,26 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
     return Object.entries(v).sort((a, b) => b[1] - a[1])[0][0];
   }
 
+  // O PPM trunca o nome do representante em 30 caracteres ("Queila de Camargo Reis dos San") e às vezes
+  // perde acento ("Mendonca" x "Mendonça"). Sem canonicalizar contra os nomes COMPLETOS da BASE, cada
+  // pessoa vira dois representantes na tabela. Só aceita o casamento quando há UM candidato — na dúvida
+  // mantém o nome como veio, para nunca fundir duas pessoas diferentes.
+  const nrmNome = s => (s || '').toString().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim();
+  const canonPorNorm = new Map();
+  for (const r of rows) {
+    const n = titleCase(r[C.consultor]);
+    if (n) canonPorNorm.set(nrmNome(n), n);
+  }
+  function canonicalizarNome(raw) {
+    if (!raw) return '';
+    const k = nrmNome(raw);
+    if (canonPorNorm.has(k)) return canonPorNorm.get(k);
+    const cands = [...canonPorNorm.keys()].filter(c => c !== k && c.length >= 12 && k.length >= 12
+      && (c.startsWith(k) || k.startsWith(c)));
+    return cands.length === 1 ? canonPorNorm.get(cands[0]) : titleCase(raw);
+  }
+
   const regs = [];
   for (const r of rows) {
     let situacao = (r[C.situacao] || '').toString().trim();
@@ -123,7 +143,9 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
     // Quem vendeu, em camadas: o consultor da BASE manda; sem ele, busca a PESSOA pela placa na Subscrição;
     // só então cai na agência. Sem a camada da placa, 2.2k placas ficavam na PJ (com zero vendas) enquanto
     // as vendas iam para a pessoa — estoque e venda do mesmo negócio em linhas diferentes.
-    const quemVendeu = titleCase(consultorRaw || (placa && placa2rep[placa]) || repRaw);
+    const quemVendeu = titleCase(consultorRaw)
+      || (placa && placa2rep[placa] ? canonicalizarNome(placa2rep[placa]) : '')
+      || titleCase(repRaw);
     // unidade em camadas, da mais confiável para a mais ampla; sem nenhuma => "(Sem Unidade)", mas o
     // registro NÃO é descartado (descartar fazia o total da carteira ficar abaixo do real — bug de 10/08).
     const unidadeRaw = MAPA[consultorRaw.toUpperCase()]                                   // 1. consultor no mapa
