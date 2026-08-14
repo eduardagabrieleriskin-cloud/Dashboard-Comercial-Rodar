@@ -177,7 +177,6 @@
       <div><h2>Cotações e Taxa de Conversão por Consultor</h2><p>Quantidade de cotações por mês e % de conversão (cotações que viraram placa ativa/inadimplente ÷ total cotado), por consultor. Cada célula mostra <b>Visão Placa / Visão Cliente</b>.</p></div>
     </div>
     <div class="card">
-      <div class="callout" id="conv-callout"></div>
       <div class="table-controls">
         <input class="search-input" id="conv-search-box" placeholder="Buscar consultor...">
       </div>
@@ -543,13 +542,6 @@ function getConvLeaves(){
 }
 function pctConv(v){ return v===null||v===undefined ? '—' : pct(v); }
 function badgeConvClass(v){ if(v===null||v===undefined) return ''; if(v>=0.7) return 'g'; if(v>=0.4) return 'a'; return 'r'; }
-function renderConvCallout(){
-  const t = CONV.totais;
-  const semCot = t.sem_cotacao_registrada ? ` · ${num(t.sem_cotacao_registrada)} consultor(es) sem cotação casada (exibem —)` : '';
-  document.getElementById('conv-callout').innerHTML =
-    `<span>Conversão geral (mai–ago), Placa: <b style="font-size:16px;">${num(t.total_fechado)} / ${num(t.total_cotado)}</b> = <b>${pct(t.conversao)}</b>`
-    + ` &nbsp;·&nbsp; Cliente: <b style="font-size:16px;">${num(t.total_fechado_cliente)} / ${num(t.total_cotado_cliente)}</b> = <b>${pct(t.conversao_cliente)}</b></span>${semCot}`;
-}
 function renderConvHead(){
   const leaves = getConvLeaves();
   const rowGroup = document.getElementById('conv-table-head-group');
@@ -596,7 +588,6 @@ function renderConvBody(){
     }).join('')}</tr>`).join('');
 }
 document.getElementById('conv-search-box').addEventListener('input', renderConvBody);
-renderConvCallout();
 renderConvHead();
 renderConvBody();
 </script>
