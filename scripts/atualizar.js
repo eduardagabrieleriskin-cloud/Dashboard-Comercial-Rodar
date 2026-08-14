@@ -240,8 +240,10 @@ try {
   // "(Sem Unidade)" agora é um grupo válido (não descartamos mais o registro) — só avisa, não bloqueia o deploy.
   const semU = res.data.representante.filter(r => !r.unidade || r.unidade === '(Sem Unidade)');
   if (semU.length) log('AVISO: representantes em "(Sem Unidade)": ' + semU.map(r => r.nome).join(', '));
+  // "fechado" agora é por PERÍODO (placas fechadas no mês), não por safra de cotação — passar de 100% é
+  // esperado (o que fecha em agosto foi cotado em julho, e há venda sem cotação registrada no PPM).
   const acima100 = conversao.consultores.filter(c => c.total_fechado > c.total_cotado);
-  if (acima100.length) throw new Error('conversão >100% em: ' + acima100.map(c => c.nome).join(', '));
+  if (acima100.length) log('conversão >100% (esperado na leitura por período): ' + acima100.map(c => c.nome).join(', '));
 
   fs.writeFileSync(OUT, html);
   log('index.html gerado (' + (html.length / 1024).toFixed(0) + 'KB) | carteira=' + res.data.kpis.carteira_qtde
