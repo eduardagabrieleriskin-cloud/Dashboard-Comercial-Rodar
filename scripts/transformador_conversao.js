@@ -26,6 +26,7 @@ const XLSX = require('xlsx');
 
 const S = { codigo: 0, associado: 1, placa: 3, data: 4, franquia: 6, representante: 7, status: 8 };
 const MESES = ['2026-05', '2026-06', '2026-07', '2026-08'];
+const MES_NOME = { '2026-05': 'maio', '2026-06': 'junho', '2026-07': 'julho', '2026-08': 'agosto' };
 
 // índices das colunas do BASE resolvidos por nome (não por posição fixa) — o Siprov já
 // mudou a ordem/qtde de colunas entre exportações (ver transformador_base.js).
@@ -130,22 +131,34 @@ module.exports = function build(cotacoesXlsx, baseXlsx, ateISO, representantesBa
     }
   }
 
+  // FECHADO = placas efetivamente fechadas no mês (mesma fonte da tabela de Detalhamento), para as duas
+  // tabelas mostrarem o mesmo número (Kauan em agosto = 26).
+  // COTADO = cotações do arquivo + as fechadas. O Controle de Cotações só guarda o que NÃO converteu —
+  // quando a cotação vira subscrição ela SAI do arquivo (verificado: zero interseção de nº de cotação entre
+  // os dois). Somando as fechadas de volta, o denominador vira o funil real do mês e, por construção,
+  // FECHADO nunca passa de COTADO.
+  const vendasPorNome = {};
+  representantesBase.forEach(r => { vendasPorNome[r.nome] = r; });
+
   const consultores = Object.values(acc).map(a => {
-    const o = {
-      nome: a.nome, unidade: a.unidade,
-      total_cotado: a.total_cot, total_fechado: a.total_fech,
-      conversao: a.total_cot ? +(a.total_fech / a.total_cot).toFixed(4) : null,
-      total_cotado_cliente: a.total_cliCot.size, total_fechado_cliente: a.total_cliFech.size,
-      conversao_cliente: a.total_cliCot.size ? +(a.total_cliFech.size / a.total_cliCot.size).toFixed(4) : null,
-    };
+    const V = vendasPorNome[a.nome] || {};
+    const o = { nome: a.nome, unidade: a.unidade };
+    let tc = 0, tf = 0, tcc = 0, tfc = 0;
     MESES.forEach(m => {
-      const cm = a.cot[m] || 0, fm = a.fech[m] || 0;
+      const fm = V['vendas_' + MES_NOME[m]] || 0;
+      const cfm = V['vendas_' + MES_NOME[m] + '_cliente'] || 0;
+      const cm = (a.cot[m] || 0) + fm;                                  // não convertidas + fechadas
+      const ccm = (a.cliCot[m] ? a.cliCot[m].size : 0) + cfm;
+      tc += cm; tf += fm; tcc += ccm; tfc += cfm;
       o['cot_' + m] = cm; o['fech_' + m] = fm;
       o['conv_' + m] = cm ? +(fm / cm).toFixed(4) : null;
-      const ccm = a.cliCot[m] ? a.cliCot[m].size : 0, cfm = a.cliFech[m] ? a.cliFech[m].size : 0;
       o['cot_cliente_' + m] = ccm; o['fech_cliente_' + m] = cfm;
       o['conv_cliente_' + m] = ccm ? +(cfm / ccm).toFixed(4) : null;
     });
+    o.total_cotado = tc; o.total_fechado = tf;
+    o.total_cotado_cliente = tcc; o.total_fechado_cliente = tfc;
+    o.conversao = tc ? +(tf / tc).toFixed(4) : null;
+    o.conversao_cliente = tcc ? +(tfc / tcc).toFixed(4) : null;
     return o;
   }).sort((x, y) => y.total_cotado - x.total_cotado);
 
