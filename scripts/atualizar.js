@@ -18,6 +18,7 @@ const XLSX = require('xlsx');
 const buildBase = require('./transformador_base');
 const buildConversao = require('./transformador_conversao');
 const buildVendas = require('./transformador_vendas');
+const lerSubscricao = require('./leitor_subscricao');
 
 const MESES = ['2026-05', '2026-06', '2026-07', '2026-08'];
 const MES_NOME = { '2026-05': 'maio', '2026-06': 'junho', '2026-07': 'julho', '2026-08': 'agosto' };
@@ -121,9 +122,9 @@ try {
   if (subscricao) {
     // arquivo pode ter sido exportado vazio (só título+cabeçalho, 0 linhas de dado) — nesse caso
     // NÃO usar (senão zera as vendas de todo mundo); cai no fallback via BASE, com aviso.
-    const wbSub = XLSX.readFile(subscricao.full);
-    const nRows = XLSX.utils.sheet_to_json(wbSub.Sheets[wbSub.SheetNames[0]], { header: 1, raw: false }).slice(2).length;
+    const nRows = lerSubscricao(subscricao.full).length;
     if (nRows === 0) { log('AVISO: ' + subscricao.f + ' está vazio (0 linhas de dado) — ignorando, vendas usam a BASE.'); subscricao = null; }
+    else log(subscricao.f + ': ' + nRows + ' subscrições lidas');
   }
 
   const assinatura = base.f + '|' + Math.round(base.m) + '|' + (cotacoes ? cotacoes.f + '|' + Math.round(cotacoes.m) : 'sem-cotacoes')
@@ -159,15 +160,10 @@ try {
   // Siprov exportou vazio (ver transformador_base). Colunas: 7=Placa(s), 24=Franquia, 26=Representante.
   const placa2rep = {}, placa2unidade = {};
   if (subscricao) {
-    const wbSub = XLSX.readFile(subscricao.full);
-    const rowsSub = XLSX.utils.sheet_to_json(wbSub.Sheets[wbSub.SheetNames[0]], { header: 1, raw: false }).slice(2);
-    for (const r of rowsSub) {
-      const rep = String(r[26] || '').trim(), franq = String(r[24] || '').trim();
-      for (const p of String(r[7] || '').split(/[\s,\/]+/)) {
-        const pn = p.toUpperCase().replace(/[^A-Z0-9]/g, '');
-        if (pn.length < 6) continue;
-        if (rep) placa2rep[pn] = rep;
-        if (franq) placa2unidade[pn] = franq;
+    for (const r of lerSubscricao(subscricao.full)) {
+      for (const pn of r.placas) {
+        if (r.representante) placa2rep[pn] = r.representante;
+        if (r.franquia) placa2unidade[pn] = r.franquia;
       }
     }
     log('placas mapeadas na Subscrição: ' + Object.keys(placa2rep).length + ' (representante) / ' + Object.keys(placa2unidade).length + ' (franquia)');

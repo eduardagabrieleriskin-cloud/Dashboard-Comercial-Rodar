@@ -9,9 +9,7 @@
  *
  * Uso: build(subscricaoXlsx, representantesBase, meses) -> Map nome -> {mes: {placa, clientes:Set}}
  */
-const XLSX = require('xlsx');
-
-const S = { associado: 1, placa: 7, data: 16, representante: 26, status: 28 };
+const lerSubscricao = require('./leitor_subscricao');
 
 function norm(s) {
   return (s || '').toString().replace(/^[A-Za-z]\/\s*/, '') // remove prefixo tipo "G/ " (grupo/franquia colado no nome)
@@ -45,11 +43,10 @@ module.exports = function build(subscricaoXlsx, representantesBase, meses, placa
     const p = (v == null ? '' : v).toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
     return p.length >= 6 ? p : '';
   };
-  const wb = XLSX.readFile(subscricaoXlsx);
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false }).slice(2);
+  const rows = lerSubscricao(subscricaoXlsx);   // já normalizado: {placas[], data ISO, representante, status, ...}
 
   const nomesBase = representantesBase.map(r => r.nome);
-  const rawNomes = [...new Set(rows.map(r => (r[S.representante] || '').trim()).filter(Boolean))];
+  const rawNomes = [...new Set(rows.map(r => r.representante).filter(Boolean))];
   const destino = {};
   for (const rn of rawNomes) {
     const scored = nomesBase.map(bn => ({ bn, s: scoreNomes(rn, bn) })).filter(x => x.s > 0).sort((a, b) => b.s - a.s);
@@ -66,26 +63,23 @@ module.exports = function build(subscricaoXlsx, representantesBase, meses, placa
   const semMatch = new Set();
   const registros = []; // {alvo, mes, dataISO, associado} — para recálculos flexíveis (ex: comparação justa por dia)
   for (const r of rows) {
-    const d = iso(r[S.data]);
+    const d = r.data;
     if (!d || d > ate) continue;
     // proposta RECUSADA não é venda (validado com a Eduarda em 14/08: Queila em agosto tinha 28 propostas,
     // 3 recusadas => 25 fechadas). Os demais status (Pendência Vistoria, Análise Rastreador, vazio…) contam.
-    if (String(r[S.status] || '').trim().toUpperCase() === 'RECUSADO') continue;
+    if (r.status.toUpperCase() === 'RECUSADO') continue;
     const mes = d.slice(0, 7);
     if (!meses.includes(mes)) continue;
-    const raw = (r[S.representante] || '').trim();
+    const raw = r.representante;
     // 1) pela PLACA na BASE (exato); 2) fallback: casamento por nome
     let alvo = null;
-    for (const p of String(r[S.placa] || '').split(/[\s,\/]+/)) {
-      const pn = normPlaca(p);
-      if (pn && P2R[pn]) { alvo = P2R[pn]; break; }
-    }
+    for (const pn of r.placas) { if (P2R[pn]) { alvo = P2R[pn]; break; } }
     if (!alvo) alvo = destino[raw];
     if (!alvo || !porRep[alvo]) { if (raw) semMatch.add(raw); continue; }
     const bucket = porRep[alvo][mes];
     bucket.placas++;
-    bucket.clientes.add(norm(r[S.associado]));
-    registros.push({ alvo, mes, dataISO: d, associado: norm(r[S.associado]) });
+    bucket.clientes.add(norm(r.associado));
+    registros.push({ alvo, mes, dataISO: d, associado: norm(r.associado) });
   }
 
   return { porRep, semMatch: [...semMatch], registros };
