@@ -36,7 +36,10 @@ function iso(s) { if (!s) return null; const m = String(s).match(/(\d{2})\/(\d{2
 // Isso mantém estoque e venda do mesmo negócio na mesma linha e resolve, de uma vez: (a) variações de nome
 // ("Hugo Sigaki" vs "Hugo Eity Felix Sigaki"), (b) divergência de atribuição entre os dois sistemas — a BASE
 // vence por ser o sistema de registro da carteira. O casamento por nome fica só como fallback.
-module.exports = function build(subscricaoXlsx, representantesBase, meses, placaParaRepresentante) {
+// ateISO: data de corte. OBRIGATÓRIA — sem ela o mês corrente entrava INTEIRO (inclusive dias posteriores
+// ao corte), inflando as vendas e fazendo esta tabela divergir da de Conversão, que já respeitava o corte.
+module.exports = function build(subscricaoXlsx, representantesBase, meses, placaParaRepresentante, ateISO) {
+  const ate = ateISO || '2026-12-31';
   const P2R = placaParaRepresentante || {};
   const normPlaca = v => {
     const p = (v == null ? '' : v).toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -64,7 +67,7 @@ module.exports = function build(subscricaoXlsx, representantesBase, meses, placa
   const registros = []; // {alvo, mes, dataISO, associado} — para recálculos flexíveis (ex: comparação justa por dia)
   for (const r of rows) {
     const d = iso(r[S.data]);
-    if (!d) continue;
+    if (!d || d > ate) continue;
     const mes = d.slice(0, 7);
     if (!meses.includes(mes)) continue;
     const raw = (r[S.representante] || '').trim();

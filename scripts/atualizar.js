@@ -28,7 +28,7 @@ const MES_NOME = { '2026-05': 'maio', '2026-06': 'junho', '2026-07': 'julho', '2
 // proposta pela data de transmissão, independente do status atual — é o número certo.
 // Valor/ticket médio continuam vindo da BASE (não houve validação separada para R$).
 function aplicarVendasDaSubscricao(res, subscricaoPath, ate) {
-  const { porRep, semMatch, registros } = buildVendas(subscricaoPath, res.data.representante, MESES, res.placaParaRepresentante);
+  const { porRep, semMatch, registros } = buildVendas(subscricaoPath, res.data.representante, MESES, res.placaParaRepresentante, ate);
 
   res.data.representante.forEach(r => {
     MESES.forEach(mIso => {
