@@ -11,7 +11,7 @@
  */
 const XLSX = require('xlsx');
 
-const S = { associado: 1, placa: 7, data: 16, representante: 26 };
+const S = { associado: 1, placa: 7, data: 16, representante: 26, status: 28 };
 
 function norm(s) {
   return (s || '').toString().replace(/^[A-Za-z]\/\s*/, '') // remove prefixo tipo "G/ " (grupo/franquia colado no nome)
@@ -68,6 +68,9 @@ module.exports = function build(subscricaoXlsx, representantesBase, meses, placa
   for (const r of rows) {
     const d = iso(r[S.data]);
     if (!d || d > ate) continue;
+    // proposta RECUSADA não é venda (validado com a Eduarda em 14/08: Queila em agosto tinha 28 propostas,
+    // 3 recusadas => 25 fechadas). Os demais status (Pendência Vistoria, Análise Rastreador, vazio…) contam.
+    if (String(r[S.status] || '').trim().toUpperCase() === 'RECUSADO') continue;
     const mes = d.slice(0, 7);
     if (!meses.includes(mes)) continue;
     const raw = (r[S.representante] || '').trim();
