@@ -25,19 +25,30 @@ const COLUNAS = {
 
 const nrm = s => String(s == null ? '' : s).trim().toUpperCase();
 
-// aceita "14/08/2026 ..." (dd/mm/yyyy) e "8/14/26" (M/D/YY). Desambigua pelo componente > 12.
-function paraISO(v) {
-  const s = String(v == null ? '' : v).trim();
-  if (!s) return null;
-  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
-  if (!m) return null;
-  let [, a, b, ano] = m;
-  a = +a; b = +b; ano = +ano;
+const partes = v => { const m = String(v == null ? '' : v).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); return m ? [+m[1], +m[2], +m[3]] : null; };
+
+// O formato NÃO pode ser decidido linha a linha: "8/5/26" é ambíguo (5/ago em M/D, 8/mai em D/M) e chutar
+// errado joga vendas de agosto para maio — foi o que zerou agosto no export de 14/08. Então varremos a
+// coluna inteira: se ALGUMA linha tem 2º componente > 12, o arquivo é M/D; se alguma tem 1º > 12, é D/M.
+function detectarFormato(valores) {
+  let temDia2 = false, temDia1 = false;
+  for (const v of valores) {
+    const p = partes(v); if (!p) continue;
+    if (p[1] > 12) temDia2 = true;
+    if (p[0] > 12) temDia1 = true;
+  }
+  if (temDia2 && !temDia1) return 'MDY';
+  if (temDia1 && !temDia2) return 'DMY';
+  if (temDia1 && temDia2) throw new Error('coluna de data da Subscrição tem linhas em D/M E em M/D — export inconsistente');
+  return 'DMY'; // nenhuma pista: mantém o padrão BR histórico
+}
+
+function paraISO(v, formato) {
+  const p = partes(v); if (!p) return null;
+  let [a, b, ano] = p;
   if (ano < 100) ano += 2000;
-  let dia, mes;
-  if (a > 12) { dia = a; mes = b; }        // só pode ser dd/mm
-  else if (b > 12) { mes = a; dia = b; }   // só pode ser M/D
-  else { dia = a; mes = b; }               // ambíguo: assume dd/mm (padrão BR histórico do arquivo)
+  const dia = formato === 'MDY' ? b : a;
+  const mes = formato === 'MDY' ? a : b;
   if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
   return ano + '-' + String(mes).padStart(2, '0') + '-' + String(dia).padStart(2, '0');
 }
@@ -69,10 +80,12 @@ module.exports = function lerSubscricao(xlsxPath) {
   }
   const val = (r, k) => idx[k] >= 0 ? r[idx[k]] : undefined;
 
+  const dados = linhas.slice(iCab + 1).filter(r => r && !r.every(c => c == null || c === ''));
+  const formato = detectarFormato(dados.map(r => val(r, 'data')));
+
   const out = [];
-  for (const r of linhas.slice(iCab + 1)) {
-    if (!r || r.every(c => c == null || c === '')) continue;
-    const data = paraISO(val(r, 'data'));
+  for (const r of dados) {
+    const data = paraISO(val(r, 'data'), formato);
     if (!data) continue;                       // linha sem data válida não é subscrição
     out.push({
       cotacao: String(val(r, 'cotacao') || '').trim(),
