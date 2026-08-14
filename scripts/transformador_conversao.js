@@ -26,7 +26,6 @@ const XLSX = require('xlsx');
 
 const S = { codigo: 0, associado: 1, placa: 3, data: 4, franquia: 6, representante: 7, status: 8 };
 const MESES = ['2026-05', '2026-06', '2026-07', '2026-08'];
-const MES_NOME = { '2026-05': 'maio', '2026-06': 'junho', '2026-07': 'julho', '2026-08': 'agosto' };
 
 // índices das colunas do BASE resolvidos por nome (não por posição fixa) — o Siprov já
 // mudou a ordem/qtde de colunas entre exportações (ver transformador_base.js).
@@ -131,41 +130,28 @@ module.exports = function build(cotacoesXlsx, baseXlsx, ateISO, representantesBa
     }
   }
 
-  // vendas já calculadas pelo transformador_vendas (atualizar.js aplica ANTES de chamar esta função),
-  // usadas como a coluna "fechado" para as duas tabelas do painel baterem.
-  const vendasPorNome = {};
-  representantesBase.forEach(r => { vendasPorNome[r.nome] = r; });
-
   const consultores = Object.values(acc).map(a => {
     const o = {
       nome: a.nome, unidade: a.unidade,
-      total_cotado: a.total_cot,
-      total_cotado_cliente: a.total_cliCot.size,
+      total_cotado: a.total_cot, total_fechado: a.total_fech,
+      conversao: a.total_cot ? +(a.total_fech / a.total_cot).toFixed(4) : null,
+      total_cotado_cliente: a.total_cliCot.size, total_fechado_cliente: a.total_cliFech.size,
+      conversao_cliente: a.total_cliCot.size ? +(a.total_cliFech.size / a.total_cliCot.size).toFixed(4) : null,
     };
-    // FECHADO = placas efetivamente fechadas NO MÊS (mesma fonte da tabela de Detalhamento), e não a
-    // "safra" de cotações daquele mês que já converteram. Foi o que a Eduarda pediu em 14/08: as duas
-    // tabelas precisam mostrar o mesmo número (Kauan em agosto = 26, não 7).
-    // Consequência esperada: a conversão PODE passar de 100% num mês, porque o que fecha em agosto em
-    // boa parte foi cotado em julho — é leitura de período, não de safra.
-    const V = vendasPorNome[a.nome] || {};
-    let tf = 0, tfc = 0;
     MESES.forEach(m => {
-      const cm = a.cot[m] || 0;
-      const fm = V['vendas_' + MES_NOME[m]] || 0;
-      const cfm = V['vendas_' + MES_NOME[m] + '_cliente'] || 0;
-      tf += fm; tfc += cfm;
+      const cm = a.cot[m] || 0, fm = a.fech[m] || 0;
       o['cot_' + m] = cm; o['fech_' + m] = fm;
       o['conv_' + m] = cm ? +(fm / cm).toFixed(4) : null;
-      const ccm = a.cliCot[m] ? a.cliCot[m].size : 0;
+      const ccm = a.cliCot[m] ? a.cliCot[m].size : 0, cfm = a.cliFech[m] ? a.cliFech[m].size : 0;
       o['cot_cliente_' + m] = ccm; o['fech_cliente_' + m] = cfm;
       o['conv_cliente_' + m] = ccm ? +(cfm / ccm).toFixed(4) : null;
     });
-    o.total_fechado = tf;
-    o.total_fechado_cliente = tfc;
-    o.conversao = o.total_cotado ? +(tf / o.total_cotado).toFixed(4) : null;
-    o.conversao_cliente = o.total_cotado_cliente ? +(tfc / o.total_cotado_cliente).toFixed(4) : null;
     return o;
   }).sort((x, y) => y.total_cotado - x.total_cotado);
+
+  // sanidade: conversão nunca > 100%
+  const invalidos = consultores.filter(c => c.total_fechado > c.total_cotado || c.total_fechado_cliente > c.total_cotado_cliente);
+  if (invalidos.length) throw new Error('conversao >100% em: ' + invalidos.map(c => c.nome).join(', '));
 
   const tc = consultores.reduce((s, c) => s + c.total_cotado, 0);
   const tf = consultores.reduce((s, c) => s + c.total_fechado, 0);

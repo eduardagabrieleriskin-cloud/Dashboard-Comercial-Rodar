@@ -174,6 +174,33 @@
 
   <section>
     <div class="section-head">
+      <div><h2>Cotações e Taxa de Conversão por Consultor</h2><p>Quantidade de cotações por mês e % de conversão (cotações que viraram placa ativa/inadimplente ÷ total cotado), por consultor. Cada célula mostra <b>Visão Placa / Visão Cliente</b>.</p></div>
+    </div>
+    <div class="card">
+      <div class="callout" id="conv-callout"></div>
+      <div class="table-controls">
+        <input class="search-input" id="conv-search-box" placeholder="Buscar consultor...">
+      </div>
+      <div class="table-scroll">
+        <table id="conv-table">
+          <colgroup id="conv-table-colgroup"></colgroup>
+          <thead><tr id="conv-table-head-group"></tr><tr id="conv-table-head"></tr></thead>
+          <tbody id="conv-table-body"></tbody>
+        </table>
+      </div>
+      <div class="warn-note">
+        <b>Metodologia da conversão:</b> fechamento = a placa cotada consta como <b>Ativa ou Inadimplente</b> na base mais recente
+        (cruzamento feito pela placa do veículo, não pelo nome do consultor — evita distorções de conversão acima de 100%).
+        Fonte das cotações: <b>Controle de Cotações V2</b> (PPM) — o relatório do funil de cotação (não o Controle de Subscrição,
+        que é uma etapa mais avançada e conta duplicado). Período: maio a agosto, mesmo intervalo de dias em cada mês.<br>
+        <b>Visão Placa</b> conta cada placa cotada separadamente. <b>Visão Cliente</b> agrupa por associado — se o mesmo
+        cliente foi cotado várias vezes no mês, conta 1x.
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
       <div><h2>Detalhamento — Unidade e Representante</h2><p>Vendas, estoque, inadimplência e perda. Ordenado por Ativos (maior para o menor). Clique nos cabeçalhos para reordenar. Vendas mostram <b>Visão Placa / Visão Cliente</b>.</p></div>
     </div>
     <div class="card">
@@ -220,6 +247,7 @@
 </div>
 
 <script id="dashboard-data" type="application/json">__DATA__</script>
+<script id="conversao-data" type="application/json">__CONVERSAO__</script>
 <script>
 /* ---------------- tabelas: colunas com largura ajustável (arraste a borda) ---------------- */
 function defaultColWidth(leaf){
@@ -253,6 +281,7 @@ function attachColResize(tableId, colgroupEl, leaves){
 
 const DATA = JSON.parse(document.getElementById('dashboard-data').textContent);
 const K = DATA.kpis;
+const CONV = JSON.parse(document.getElementById('conversao-data').textContent);
 ['unidade','representante'].forEach(t => (DATA[t]||[]).forEach(r => {
   r.vendas_total_periodo = (r.vendas_maio||0) + (r.vendas_junho||0) + (r.vendas_julho||0) + (r.vendas_agosto||0);
   r.vendas_total_periodo_cliente = (r.vendas_maio_cliente||0) + (r.vendas_junho_cliente||0) + (r.vendas_julho_cliente||0) + (r.vendas_agosto_cliente||0);
@@ -490,6 +519,86 @@ document.getElementById('vendas-detalhe-toggle').addEventListener('click', funct
 renderHead();
 renderBody();
 
+/* ---------------- COTAÇÕES / CONVERSÃO POR CONSULTOR ---------------- */
+const MLBL = {'2026-05':'Maio','2026-06':'Junho','2026-07':'Julho','2026-08':'Agosto'};
+let convSortKey = 'total_cotado', convSortDir = -1;
+// Placa e Cliente viram colunas de verdade, agrupadas por um cabeçalho comum (a palavra aparece só no título, 1x)
+function getConvLeaves(){
+  const leaves = [{key:'nome', label:'Consultor', rowspan:true}, {key:'unidade', label:'Unidade', rowspan:true}];
+  CONV.meses.forEach(m => {
+    leaves.push({key:'cot_'+m, label:'Placa', group:MLBL[m]+' · Cotado', fmt:num});
+    leaves.push({key:'cot_cliente_'+m, label:'Cliente', group:MLBL[m]+' · Cotado', fmt:num});
+    leaves.push({key:'fech_'+m, label:'Placa', group:MLBL[m]+' · Fechado', fmt:num});
+    leaves.push({key:'fech_cliente_'+m, label:'Cliente', group:MLBL[m]+' · Fechado', fmt:num});
+    leaves.push({key:'conv_'+m, label:'Placa', group:MLBL[m]+' · % Conv.', fmt:pctConv, badgeConv:true});
+    leaves.push({key:'conv_cliente_'+m, label:'Cliente', group:MLBL[m]+' · % Conv.', fmt:pctConv, badgeConv:true});
+  });
+  leaves.push({key:'total_cotado', label:'Placa', group:'Total Cotado', fmt:num});
+  leaves.push({key:'total_cotado_cliente', label:'Cliente', group:'Total Cotado', fmt:num});
+  leaves.push({key:'total_fechado', label:'Placa', group:'Total Fechado', fmt:num});
+  leaves.push({key:'total_fechado_cliente', label:'Cliente', group:'Total Fechado', fmt:num});
+  leaves.push({key:'conversao', label:'Placa', group:'% Conv. Total', fmt:pctConv, badgeConv:true});
+  leaves.push({key:'conversao_cliente', label:'Cliente', group:'% Conv. Total', fmt:pctConv, badgeConv:true});
+  return leaves;
+}
+function pctConv(v){ return v===null||v===undefined ? '—' : pct(v); }
+function badgeConvClass(v){ if(v===null||v===undefined) return ''; if(v>=0.7) return 'g'; if(v>=0.4) return 'a'; return 'r'; }
+function renderConvCallout(){
+  const t = CONV.totais;
+  const semCot = t.sem_cotacao_registrada ? ` · ${num(t.sem_cotacao_registrada)} consultor(es) sem cotação casada (exibem —)` : '';
+  document.getElementById('conv-callout').innerHTML =
+    `<span>Conversão geral (mai–ago), Placa: <b style="font-size:16px;">${num(t.total_fechado)} / ${num(t.total_cotado)}</b> = <b>${pct(t.conversao)}</b>`
+    + ` &nbsp;·&nbsp; Cliente: <b style="font-size:16px;">${num(t.total_fechado_cliente)} / ${num(t.total_cotado_cliente)}</b> = <b>${pct(t.conversao_cliente)}</b></span>${semCot}`;
+}
+function renderConvHead(){
+  const leaves = getConvLeaves();
+  const rowGroup = document.getElementById('conv-table-head-group');
+  const rowLeaf = document.getElementById('conv-table-head');
+  let groupHtml = '', leafHtml = '', i = 0;
+  while(i < leaves.length){
+    const c = leaves[i];
+    if(c.rowspan){ groupHtml += `<th rowspan="2" data-key="${c.key}">${c.label}<span class="sort-arrow"></span></th>`; i++; continue; }
+    let n = 1; while(i+n < leaves.length && leaves[i+n].group === c.group) n++;
+    groupHtml += `<th colspan="${n}">${c.group}</th>`;
+    for(let j=0;j<n;j++){ const lc = leaves[i+j];
+      const arrow = convSortKey===lc.key ? (convSortDir===1?'▲':'▼') : '';
+      leafHtml += `<th data-key="${lc.key}">${lc.label}<span class="sort-arrow">${arrow}</span></th>`;
+    }
+    i += n;
+  }
+  rowGroup.innerHTML = groupHtml;
+  rowLeaf.innerHTML = leafHtml;
+  [...rowGroup.querySelectorAll('th[data-key]'), ...rowLeaf.querySelectorAll('th[data-key]')].forEach(th => th.addEventListener('click', () => {
+    const key = th.dataset.key;
+    if(convSortKey===key){ convSortDir *= -1; } else { convSortKey = key; convSortDir = (key==='nome'||key==='unidade')?1:-1; }
+    renderConvBody(); renderConvHead();
+  }));
+  const colgroupEl = document.getElementById('conv-table-colgroup');
+  if(leaves.length !== lastConvColCount){ initColgroup(colgroupEl, leaves); lastConvColCount = leaves.length; }
+  attachColResize('conv-table', colgroupEl, leaves);
+}
+let lastConvColCount = 0;
+function renderConvBody(){
+  const cols = getConvLeaves();
+  const q = document.getElementById('conv-search-box').value.trim().toLowerCase();
+  let rows = CONV.consultores.filter(r => r.nome.toLowerCase().includes(q) || (r.unidade||'').toLowerCase().includes(q));
+  rows = rows.slice().sort((a,b) => {
+    let av=a[convSortKey], bv=b[convSortKey];
+    if(typeof av === 'string') return convSortDir*av.localeCompare(bv, 'pt-BR');
+    return convSortDir*((av||0)-(bv||0));
+  });
+  document.getElementById('conv-table-body').innerHTML = rows.map(r => `
+    <tr>${cols.map(c => {
+      if(c.rowspan) return `<td>${r[c.key]}</td>`;
+      const disp = c.fmt(r[c.key]);
+      if(c.badgeConv) return `<td><span class="badge ${badgeConvClass(r[c.key])}">${disp}</span></td>`;
+      return `<td>${disp}</td>`;
+    }).join('')}</tr>`).join('');
+}
+document.getElementById('conv-search-box').addEventListener('input', renderConvBody);
+renderConvCallout();
+renderConvHead();
+renderConvBody();
 </script>
 
 <script>

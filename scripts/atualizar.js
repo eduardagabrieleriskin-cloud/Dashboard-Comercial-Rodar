@@ -225,11 +225,13 @@ try {
 
   let html = fs.readFileSync(TEMPLATE, 'utf8')
     .replace('__DATA__', JSON.stringify(res.data))
-    ; // a seção de Cotações/Conversão foi removida do painel em 14/08 (ver nota abaixo)
+    .replace('__CONVERSAO__', JSON.stringify(conversao));
 
   // validação
   const j = html.match(/<script id="dashboard-data" type="application\/json">([\s\S]*?)<\/script>/);
   JSON.parse(j[1]);
+  const jc = html.match(/<script id="conversao-data" type="application\/json">([\s\S]*?)<\/script>/);
+  JSON.parse(jc[1]);
   if (html.length < 20000) throw new Error('HTML suspeitosamente pequeno');
   // "(Sem Unidade)" agora é um grupo válido (não descartamos mais o registro) — só avisa, não bloqueia o deploy.
   const semU = res.data.representante.filter(r => !r.unidade || r.unidade === '(Sem Unidade)');
