@@ -16,6 +16,12 @@ const path = require('path');
 
 const MAPA = JSON.parse(fs.readFileSync(path.join(__dirname, 'mapa_unidades.json'), 'utf8'));
 
+// De-para de cadastros duplicados no Siprov (mesma pessoa gravada duas vezes). Confirmado contra o
+// cadastro oficial REPRESENTANTES.xlsx, que traz UMA entrada só para a pessoa. Chave e valor em MAIÚSCULAS.
+const ALIAS_CONSULTOR = {
+  'CARLOS EDUARDO CORDEIRO N': 'CARLOS EDUARDO CORDEIRO', // cadastro oficial: 1 entrada, CPF 040.609.489-69
+};
+
 // nomes das colunas no cabeçalho do BASE (linha 2 da planilha) — resolvidos para índice
 // em tempo de execução, porque o Siprov já mudou a ordem/qtde de colunas entre exportações
 // (ex.: layout de 04/08 tinha índices diferentes do layout de 10/08). Buscar por nome evita
@@ -137,7 +143,8 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
     if (!SITU_VALIDAS.includes(situacao)) continue;              // fora Recusado/vazio
     const loja = r[C.loja];
     if (ehTeste(r[C.consultor], loja)) continue;                 // fora testes
-    const consultorRaw = (r[C.consultor] || '').toString().trim();
+    let consultorRaw = (r[C.consultor] || '').toString().trim();
+    consultorRaw = ALIAS_CONSULTOR[consultorRaw.toUpperCase()] || consultorRaw;
     const repRaw = (r[C.representante] || '').toString().trim();
     const placa = normPlaca(r[C.placa]);
     // Quem vendeu, em camadas: o consultor da BASE manda; sem ele, busca a PESSOA pela placa na Subscrição;
