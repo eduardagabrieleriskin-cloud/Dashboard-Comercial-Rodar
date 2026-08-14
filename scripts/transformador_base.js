@@ -29,6 +29,7 @@ const NOMES_COLUNA = {
   adesao: 'BENEFÍCIO - DATA DE ADESÃO',
   loja: 'BENEFÍCIO - LOJA - NOME FANTASIA',
   consultor: 'BENEFÍCIO - NOME DO CONSULTOR',
+  representante: 'BENEFÍCIO - REPRESENTANTE',
 };
 function resolverColunas(headerRow) {
   const norm = s => (s || '').toString().trim().toUpperCase();
@@ -79,22 +80,43 @@ module.exports = function build(xlsxPath, ateISO) {
   // "Endosso Ativo" / "Endosso Inadimplente" contam como Ativo/Inadimplente na carteira (sem rótulo separado)
   const NORMALIZA_SITUACAO = { 'Endosso Ativo': 'Ativo', 'Endosso Inadimplente': 'Inadimplente' };
 
+  // A partir de 13/08/2026 a exportação do Siprov passou a vir com "NOME DO CONSULTOR" vazio na maioria
+  // das linhas (62%), deixando só a razão social da agência em "REPRESENTANTE" (96% preenchido). Por isso
+  // a chave passou a ser consultor || representante, e a unidade dessas PJs é derivada por votação: nas
+  // linhas em que a MESMA PJ aparece junto de um consultor que ESTÁ no mapa, herda-se a unidade dele.
+  // (Sem isso, 2.5k placas — 65% da carteira — caíam em "(Sem Representante)"/"(Sem Unidade)".)
+  const votosUnidadePorRepresentante = {};
+  for (const r of rows) {
+    const rep = (r[C.representante] || '').toString().trim();
+    const uni = MAPA[(r[C.consultor] || '').toString().trim().toUpperCase()];
+    if (!rep || !uni) continue;
+    const v = votosUnidadePorRepresentante[rep] || (votosUnidadePorRepresentante[rep] = {});
+    v[uni] = (v[uni] || 0) + 1;
+  }
+  function unidadeDerivada(rep) {
+    const v = votosUnidadePorRepresentante[rep];
+    if (!v) return null;
+    return Object.entries(v).sort((a, b) => b[1] - a[1])[0][0];
+  }
+
   const regs = [];
   for (const r of rows) {
     let situacao = (r[C.situacao] || '').toString().trim();
     situacao = NORMALIZA_SITUACAO[situacao] || situacao;
     if (!SITU_VALIDAS.includes(situacao)) continue;              // fora Recusado/vazio
-    const consultor = titleCase(r[C.consultor]);
     const loja = r[C.loja];
     if (ehTeste(r[C.consultor], loja)) continue;                 // fora testes
-    // sem unidade mapeada (ou sem consultor) => cai em "(Sem Unidade)"/"(Sem Representante)", NÃO descarta o
-    // registro — descartar fazia o total da carteira ficar abaixo do real (bug encontrado em 10/08: faltavam ~80
-    // placas porque consultores novos ainda não estavam no mapa_unidades.json).
-    const unidadeRaw = MAPA[(r[C.consultor] || '').toString().trim().toUpperCase()];
-    if (!unidadeRaw && consultor) dropConsultores.add(consultor); // ainda loga pra gente atualizar o mapa depois
+    const consultorRaw = (r[C.consultor] || '').toString().trim();
+    const repRaw = (r[C.representante] || '').toString().trim();
+    // quem "vendeu": o consultor quando o Siprov informa; senão a agência (representante)
+    const quemVendeu = titleCase(consultorRaw || repRaw);
+    // sem unidade mapeada => cai em "(Sem Unidade)", NÃO descarta o registro — descartar fazia o total da
+    // carteira ficar abaixo do real (bug encontrado em 10/08).
+    const unidadeRaw = MAPA[consultorRaw.toUpperCase()] || MAPA[repRaw.toUpperCase()] || unidadeDerivada(repRaw);
+    if (!unidadeRaw && quemVendeu) dropConsultores.add(quemVendeu); // loga pra atualizar o mapa depois
     const unidade = unidadeRaw ? canonicalizeUnidade(unidadeRaw) : '(Sem Unidade)';
     regs.push({
-      situacao, consultor: consultor || '(Sem Representante)', unidade,
+      situacao, consultor: quemVendeu || '(Sem Representante)', unidade,
       cpfAssociado: (r[C.cpfAssociado] || '').toString().trim(),
       adesao: parseISO(r[C.adesao]),
       valor: toNum(r[C.valorAjust]),
