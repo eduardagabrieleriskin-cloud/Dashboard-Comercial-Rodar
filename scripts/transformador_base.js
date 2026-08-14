@@ -79,14 +79,17 @@ function toNum(v) {
   return isNaN(n) ? 0 : n;
 }
 
-// sinais (opcional): mapas auxiliares para preencher o que o Siprov deixou em branco.
-//   placa2rep       - PLACA -> nome do representante (Controle de Subscrição V2). Chave EXATA.
-//   placa2unidade   - PLACA -> franquia (mesma fonte).
-//   cpfAssoc2unidade- CPF do associado -> franqueado ("Relatório de Subscrição"), sinal mais fraco.
-// Regra de precedência: o que a BASE informa SEMPRE vence; estes sinais só preenchem lacunas. Isso mantém
-// a BASE como sistema de registro da carteira e evita reatribuir placas que o ERP já tem definidas.
+// sinais (opcional): mapas auxiliares para preencher o que o Siprov deixou em branco, todos chaveados por
+// PLACA — a única chave que existe nas três fontes (o Nº da cotação não serve: quando uma cotação vira
+// subscrição ela SAI do Controle de Cotações, os dois arquivos são conjuntos disjuntos).
+//   placa2rep / placa2unidade         - Controle de Subscrição V2 (quem transmitiu a proposta)
+//   placa2repCot / placa2unidadeCot   - Controle de Cotações V2 (quem cotou) — pega o que a subscrição não tem
+//   cpfAssoc2unidade                  - CPF do associado -> franqueado ("Relatório de Subscrição"), mais fraco
+// Precedência: o que a BASE informa SEMPRE vence; estes sinais só preenchem lacunas. Ver scripts/ledger_placas.js,
+// que monta o livro-razão por placa usado para validar esta cascata.
 module.exports = function build(xlsxPath, ateISO, sinais) {
-  const { placa2rep = {}, placa2unidade = {}, cpfAssoc2unidade = null } = sinais || {};
+  const { placa2rep = {}, placa2unidade = {}, placa2repCot = {}, placa2unidadeCot = {},
+    cpfAssoc2unidade = null } = sinais || {};
   const wb = XLSX.readFile(xlsxPath);
   const todasLinhas = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false });
   const C = resolverColunas(todasLinhas[1]); // linha 0 = título "BASE", linha 1 = cabeçalho real
@@ -152,14 +155,16 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
     // as vendas iam para a pessoa — estoque e venda do mesmo negócio em linhas diferentes.
     const quemVendeu = titleCase(consultorRaw)
       || (placa && placa2rep[placa] ? canonicalizarNome(placa2rep[placa]) : '')
+      || (placa && placa2repCot[placa] ? canonicalizarNome(placa2repCot[placa]) : '')
       || titleCase(repRaw);
     // unidade em camadas, da mais confiável para a mais ampla; sem nenhuma => "(Sem Unidade)", mas o
     // registro NÃO é descartado (descartar fazia o total da carteira ficar abaixo do real — bug de 10/08).
     const unidadeRaw = MAPA[consultorRaw.toUpperCase()]                                   // 1. consultor no mapa
       || MAPA[repRaw.toUpperCase()]                                                       // 2. agência no mapa
-      || (placa && placa2unidade[placa])                                                  // 3. franquia da placa
-      || (cpfAssoc2unidade && cpfAssoc2unidade[(r[C.cpfAssociado] || '').toString().replace(/\D/g, '')]) // 4. franqueado do associado
-      || unidadeDerivada(repRaw);                                                         // 5. voto da agência
+      || (placa && placa2unidade[placa])                                                  // 3. franquia da placa (subscrição)
+      || (placa && placa2unidadeCot[placa])                                               // 4. franquia da placa (cotação)
+      || (cpfAssoc2unidade && cpfAssoc2unidade[(r[C.cpfAssociado] || '').toString().replace(/\D/g, '')]) // 5. franqueado do associado
+      || unidadeDerivada(repRaw);                                                         // 6. voto da agência
     if (!unidadeRaw && quemVendeu) dropConsultores.add(quemVendeu); // loga pra atualizar o mapa depois
     const unidade = unidadeRaw ? canonicalizeUnidade(unidadeRaw) : '(Sem Unidade)';
     regs.push({

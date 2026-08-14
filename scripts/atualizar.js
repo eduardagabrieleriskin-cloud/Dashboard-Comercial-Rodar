@@ -173,7 +173,26 @@ try {
     log('placas mapeadas na Subscrição: ' + Object.keys(placa2rep).length + ' (representante) / ' + Object.keys(placa2unidade).length + ' (franquia)');
   }
 
-  const res = buildBase(base.full, ate, { placa2rep, placa2unidade, cpfAssoc2unidade });
+  // Controle de Cotações V2: PLACA -> representante/franquia de quem COTOU. Última rede antes de cair na
+  // agência — resgata placas antigas que não aparecem no Controle de Subscrição (janela mais curta).
+  // Colunas: 3=Placas, 4=Data solicitação, 6=Franquia, 7=Representante.
+  const placa2repCot = {}, placa2unidadeCot = {};
+  if (cotacoes) {
+    const wbC = XLSX.readFile(cotacoes.full);
+    const rowsC = XLSX.utils.sheet_to_json(wbC.Sheets[wbC.SheetNames[0]], { header: 1, raw: false }).slice(2);
+    for (const r of rowsC) {
+      const rep = String(r[7] || '').trim(), franq = String(r[6] || '').replace(/^\d+\s*-\s*/, '').trim();
+      for (const p of String(r[3] || '').split(/[\s,\/]+/)) {
+        const pn = p.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (pn.length < 6) continue;
+        if (rep && !placa2repCot[pn]) placa2repCot[pn] = rep;
+        if (franq && !placa2unidadeCot[pn]) placa2unidadeCot[pn] = franq;
+      }
+    }
+    log('placas mapeadas nas Cotações: ' + Object.keys(placa2repCot).length);
+  }
+
+  const res = buildBase(base.full, ate, { placa2rep, placa2unidade, placa2repCot, placa2unidadeCot, cpfAssoc2unidade });
   if (res.diagnostico.consultoresSemUnidade.length)
     log('AVISO: consultores sem unidade no mapa (caem em "(Sem Unidade)", NÃO são descartados — atualizar mapa_unidades.json): '
       + res.diagnostico.consultoresSemUnidade.join(', '));
