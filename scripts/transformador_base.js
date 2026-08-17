@@ -195,8 +195,12 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
     const valor = v.reduce((s, x) => s + x.valor, 0);
     const comValor = v.filter(x => x.valor > 0).length;
     const clientes = new Set(v.map(x => x.cpfAssociado)).size;
+    // taxa de perda DESSA SAFRA: das placas vendidas nesse mês, quantas já viraram Cancelado/Inativo até
+    // hoje (não é o % de perda acumulado da base toda — é o churn específico de quem entrou nesse mês).
+    const perdidos = v.filter(x => x.situacao === 'Cancelado' || x.situacao === 'Inativo').length;
     return { qtde: v.length, qtde_cliente: clientes, valor: +valor.toFixed(2), ticket_medio: v.length ? +(valor / v.length).toFixed(2) : 0,
-      cobertura_valor_n: comValor, cobertura_valor_pct: v.length ? +(comValor / v.length).toFixed(3) : 0 };
+      cobertura_valor_n: comValor, cobertura_valor_pct: v.length ? +(comValor / v.length).toFixed(3) : 0,
+      perda_qtde: perdidos, perda_pct: v.length ? +(perdidos / v.length).toFixed(4) : 0 };
   }
   // comparação justa: quando o mes atual é parcial, o mês anterior é cortado no mesmo dia só para o % de variação
   // (o total "cheio" do mês anterior continua sendo mostrado no card dele — isso afeta só a variação)

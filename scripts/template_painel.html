@@ -303,11 +303,15 @@ function pct(v){ return (v*100).toLocaleString('pt-BR', {maximumFractionDigits:1
 /* ---------------- KPI CARDS ---------------- */
 const kpiGrid = document.getElementById('kpi-grid');
 
-function mainCard(label, qtde, valor, ticket, cls, note, variacao, comparativo){
+function mainCard(label, qtde, valor, ticket, cls, note, variacao, comparativo, perda){
   const varHtml = (variacao!==undefined && variacao!==null)
     ? `<div class="kpi-sub"><span>Variação vs mês anterior</span><b class="${variacao>=0?'up':'down'}">${variacao>=0?'+':''}${pct(variacao)}</b></div>` : '';
   const compHtml = comparativo
     ? `<div class="kpi-sub"><span>${comparativo.rotulo}</span><b>${num(comparativo.valor)}</b></div>` : '';
+  // taxa de perda DESSA SAFRA (das placas vendidas nesse mês, quantas já cancelaram/inativaram) — pedido
+  // em 17/08 pra ficar por mês, não só o acumulado geral do card "Taxa de Perda".
+  const perdaHtml = perda
+    ? `<div class="kpi-sub"><span>Taxa de Perda (dessa safra)</span><b class="${perda.pct>=0.15?'down':''}">${pct(perda.pct)} <span style="color:var(--muted); font-weight:500;">(${num(perda.qtde)})</span></b></div>` : '';
   return `<div class="kpi ${cls}">
     <div class="kpi-label">${label}</div>
     <div class="kpi-value">${num(qtde)}</div>
@@ -316,6 +320,7 @@ function mainCard(label, qtde, valor, ticket, cls, note, variacao, comparativo){
     <div class="kpi-sub"><span>Ticket médio</span><b>${brl(ticket)}</b></div>
     ${varHtml}
     ${compHtml}
+    ${perdaHtml}
   </div>`;
 }
 function miniCard(label, value, cls, sub, valueClass){
@@ -348,14 +353,15 @@ function clsSemaforo(variacao, clsPadrao){
 let kpiHtml = '';
 kpiHtml += mainCard('Carteira em Vigor', K.carteira_qtde, null, K.carteira_ticket_medio, '',
   num(K.ativos_qtde)+' Ativos + '+num(K.inadimplentes_qtde)+' Inadimplentes');
+function perdaSafra(v){ return { pct: v.perda_pct||0, qtde: v.perda_qtde||0 }; }
 kpiHtml += mainCard(rotuloMes('2026-05','Maio'), K.vendas_maio.qtde, K.vendas_maio.valor, K.vendas_maio.ticket_medio,
-  clsSemaforo('2026-05'===mesAtualKpi?K.variacao_mes_atual:null,'blue'), null, null, comparativoAteCorte('2026-05'));
+  clsSemaforo('2026-05'===mesAtualKpi?K.variacao_mes_atual:null,'blue'), null, null, comparativoAteCorte('2026-05'), perdaSafra(K.vendas_maio));
 kpiHtml += mainCard(rotuloMes('2026-06','Junho'), K.vendas_junho.qtde, K.vendas_junho.valor, K.vendas_junho.ticket_medio,
-  clsSemaforo('2026-06'===mesAtualKpi?K.variacao_mes_atual:null,'blue'), null, K.var_maio_junho_pct, comparativoAteCorte('2026-06'));
+  clsSemaforo('2026-06'===mesAtualKpi?K.variacao_mes_atual:null,'blue'), null, K.var_maio_junho_pct, comparativoAteCorte('2026-06'), perdaSafra(K.vendas_junho));
 kpiHtml += mainCard(rotuloMes('2026-07','Julho'), K.vendas_julho.qtde, K.vendas_julho.valor, K.vendas_julho.ticket_medio,
-  clsSemaforo('2026-07'===mesAtualKpi?K.variacao_mes_atual:null,'amber'), null, K.var_junho_julho_pct, comparativoAteCorte('2026-07'));
+  clsSemaforo('2026-07'===mesAtualKpi?K.variacao_mes_atual:null,'amber'), null, K.var_junho_julho_pct, comparativoAteCorte('2026-07'), perdaSafra(K.vendas_julho));
 kpiHtml += mainCard(rotuloMes('2026-08','Agosto'), K.vendas_agosto.qtde, K.vendas_agosto.valor, K.vendas_agosto.ticket_medio,
-  clsSemaforo('2026-08'===mesAtualKpi?K.variacao_mes_atual:null,'amber'), null, K.var_julho_agosto_pct, comparativoAteCorte('2026-08'));
+  clsSemaforo('2026-08'===mesAtualKpi?K.variacao_mes_atual:null,'amber'), null, K.var_julho_agosto_pct, comparativoAteCorte('2026-08'), perdaSafra(K.vendas_agosto));
 
 kpiHtml += miniCard('Inadimplência', num(K.inadimplentes_qtde) + ' placas', 'red', pct(K.pct_inadimplencia) + ' — acumulado, da base toda de hoje');
 kpiHtml += miniCard('Taxa de Perda', pct(K.pct_perda), 'amber', num(K.cancelados_qtde+K.inativos_qtde) + ' canceladas/inativas — acumulado, da base toda de hoje');
