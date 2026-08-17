@@ -268,12 +268,11 @@ try {
       + res.diagnostico.consultoresSemUnidade.join(', '));
   res.data.meta.gerado_em = fmtBR(new Date());
 
+  // Vendas contadas direto do BASE (coluna BENEFÍCIO - DATA DE ADESÃO), não cruzando com Subscrição.
+  // Isso garante que os números de vendas batem exatamente com a contagem manual no BASE.
+  // (Antes: aplicarVendasDaSubscricao substituía pelos números da Subscrição, que era um conjunto diferente.)
   if (subscricao) {
-    const semMatch = aplicarVendasDaSubscricao(res, subscricao.full, ate, DOWNLOADS);
-    log('vendas recalculadas a partir de ' + subscricao.f + ' (fonte validada — BASE subcontava quem saiu de "Ativo")'
-      + (semMatch.length ? ' | consultores da Subscrição sem match: ' + semMatch.join(', ') : ''));
-  } else {
-    log('AVISO: sem Controle_de_Subscrição em Downloads — vendas usam a BASE (pode subcontar).');
+    log('Subscrição carregada (' + subscricao.f + ') mas vendas contadas direto do BASE (data de adesão).');
   }
 
   // representantes/unidades sem NADA no período (0 na carteira e 0 vendas nos 4 meses) só poluem a tabela
