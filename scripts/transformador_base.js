@@ -195,15 +195,15 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
     const valor = v.reduce((s, x) => s + x.valor, 0);
     const comValor = v.filter(x => x.valor > 0).length;
     const clientes = new Set(v.map(x => x.cpfAssociado)).size;
-    // taxa de perda DESSA SAFRA: das placas vendidas nesse mês, quantas já viraram Cancelado/Inativo até
-    // hoje (não é o % de perda acumulado da base toda — é o churn específico de quem entrou nesse mês).
-    const perdidos = v.filter(x => x.situacao === 'Cancelado' || x.situacao === 'Inativo').length;
     return { qtde: v.length, qtde_cliente: clientes, valor: +valor.toFixed(2), ticket_medio: v.length ? +(valor / v.length).toFixed(2) : 0,
-      cobertura_valor_n: comValor, cobertura_valor_pct: v.length ? +(comValor / v.length).toFixed(3) : 0,
-      perda_qtde: perdidos, perda_pct: v.length ? +(perdidos / v.length).toFixed(4) : 0 };
+      cobertura_valor_n: comValor, cobertura_valor_pct: v.length ? +(comValor / v.length).toFixed(3) : 0 };
   }
-  // comparação justa: quando o mes atual é parcial, o mês anterior é cortado no mesmo dia só para o % de variação
-  // (o total "cheio" do mês anterior continua sendo mostrado no card dele — isso afeta só a variação)
+  // comparação justa: TUDO na mesma data de corte (dia do mês atual) — pedido da Eduarda em 17/08. Sem
+  // isso, Maio/Junho/Julho (mês fechado, 30 dias) não são comparáveis com Agosto (parcial, só até o dia
+  // do corte). "diasNoMes"/"limiteMes" travam no último dia de meses mais curtos (ex: corte dia 31 em mês
+  // de 30 dias).
+  function diasNoMes(mesIso) { const [ano, m] = mesIso.split('-').map(Number); return new Date(ano, m, 0).getDate(); }
+  function limiteMes(mesIso) { return mesIso + '-' + String(Math.min(diaCorte, diasNoMes(mesIso))).padStart(2, '0'); }
   function qtdeMesAteDia(mes, dia) {
     return regs.filter(x => x.adesao && x.adesao.slice(0, 7) === mes && x.adesao <= mes + '-' + String(dia).padStart(2, '0')).length;
   }
@@ -212,12 +212,23 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
     const baseComparavel = qtdeMesAteDia(mesAnterior, diaCorte);
     return baseComparavel ? +((qtdeAtualCard - baseComparavel) / baseComparavel).toFixed(4) : 0;
   }
+  // taxa de perda POR MÊS, sempre na mesma data de corte (para os 4 meses, inclusive o atual — no mês
+  // atual o "limite" já é a própria data de corte, então dá o mesmo resultado de sempre): das placas
+  // vendidas naquele mês até o dia do corte, quantas já viraram Cancelado/Inativo até hoje.
+  function perdaAteCorte(mesIso) {
+    const limite = limiteMes(mesIso);
+    const v = regs.filter(x => x.adesao && x.adesao.slice(0, 7) === mesIso && x.adesao <= limite);
+    const perdidos = v.filter(x => x.situacao === 'Cancelado' || x.situacao === 'Inativo').length;
+    return { qtde: v.length, perda_qtde: perdidos, perda_pct: v.length ? +(perdidos / v.length).toFixed(4) : 0 };
+  }
   const vm = vendasMes('2026-05'), vj = vendasMes('2026-06'), vjl = vendasMes('2026-07'), vag = vendasMes('2026-08');
   // "até dia X" de cada mês FECHADO, na mesma data de corte do mês atual — pedido da Eduarda em 17/08:
   // dá pra comparar Maio/Junho/Julho com Agosto na mesma régua (todos "até dia 16"), não só o total cheio.
   const mesesTodos = ['2026-05', '2026-06', '2026-07', '2026-08'];
   const ateCortePorMes = {};
   mesesTodos.filter(m => m !== mesAtual).forEach(m => { ateCortePorMes[m] = qtdeMesAteDia(m, diaCorte); });
+  const perdaPorMes = {};
+  mesesTodos.forEach(m => { perdaPorMes[m] = perdaAteCorte(m); });
   const cont = s => regs.filter(x => x.situacao === s);
   const ativos = cont('Ativo'), inad = cont('Inadimplente'), canc = cont('Cancelado'), inat = cont('Inativo'), pend = cont('Pendente');
   const carteira = regs.filter(ehAtivo);
@@ -233,6 +244,7 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
     var_julho_agosto_pct: variacaoJusta('2026-07', vjl.qtde, '2026-08', vag.qtde),
     var_junho_julho_ritmo_pct: 0,
     ate_corte_por_mes: ateCortePorMes,
+    perda_por_mes: perdaPorMes,
     // variação do MÊS ATUAL especificamente (qual das três acima corresponde a ele) — usada pra colorir o
     // card do mês corrente (verde/amarelo/vermelho) sem precisar saber, do lado do template, qual mês é.
     variacao_mes_atual: mesAtual === '2026-08' ? variacaoJusta('2026-07', vjl.qtde, '2026-08', vag.qtde)
