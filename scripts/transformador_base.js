@@ -182,6 +182,13 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
   const placaParaRepresentante = {};
   regs.forEach(x => { if (x.placa) placaParaRepresentante[x.placa] = x.consultor; });
 
+  // PLACA -> BENEFÍCIO - DATA DE ADESÃO (BASE) — pedido em 17/08: contar "vendas" pela data de adesão
+  // oficial do contrato, não pela "Data Transmissão/Cálculo" do Controle de Subscrição (que é quando a
+  // proposta foi calculada no PPM, podendo ser antes ou depois da adesão real). Usada em transformador_vendas.js
+  // como a data preferencial; cai para a data da Subscrição só quando a placa ainda não está na BASE.
+  const placaParaAdesao = {};
+  regs.forEach(x => { if (x.placa && x.adesao) placaParaAdesao[x.placa] = x.adesao; });
+
   const ate = ateISO || '2026-12-31';
   // meses fechados mostram total do mês inteiro; só o mês atual (o de "ate") é parcial por natureza.
   const mesAtual = ate.slice(0, 7);
@@ -325,6 +332,7 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
   return {
     data: { kpis, unidade, representante, daily, meta: { gerado_em: '__HOJE__', periodo: 'Maio a Agosto de 2026 (até ' + ate.split('-').reverse().join('/') + ')' } },
     placaParaRepresentante,
+    placaParaAdesao,
     diagnostico: { registros: regs.length, consultoresSemUnidade: [...dropConsultores] }
   };
 };

@@ -36,9 +36,10 @@ function iso(s) { if (!s) return null; const m = String(s).match(/(\d{2})\/(\d{2
 // vence por ser o sistema de registro da carteira. O casamento por nome fica só como fallback.
 // ateISO: data de corte. OBRIGATÓRIA — sem ela o mês corrente entrava INTEIRO (inclusive dias posteriores
 // ao corte), inflando as vendas e fazendo esta tabela divergir da de Conversão, que já respeitava o corte.
-module.exports = function build(subscricaoXlsx, representantesBase, meses, placaParaRepresentante, ateISO) {
+module.exports = function build(subscricaoXlsx, representantesBase, meses, placaParaRepresentante, ateISO, placaParaAdesao) {
   const ate = ateISO || '2026-12-31';
   const P2R = placaParaRepresentante || {};
+  const P2A = placaParaAdesao || {};
   const normPlaca = v => {
     const p = (v == null ? '' : v).toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
     return p.length >= 6 ? p : '';
@@ -63,7 +64,11 @@ module.exports = function build(subscricaoXlsx, representantesBase, meses, placa
   const semMatch = new Set();
   const registros = []; // {alvo, mes, dataISO, associado} — para recálculos flexíveis (ex: comparação justa por dia)
   for (const r of rows) {
-    const d = r.data;
+    // data preferencial: BENEFÍCIO - DATA DE ADESÃO da BASE (data oficial do contrato), pela placa; cai
+    // para a Data Transmissão/Cálculo da Subscrição só quando a placa ainda não apareceu na BASE (pedido
+    // em 17/08 — a data de transmissão pode ficar dias antes/depois da adesão real).
+    let d = r.data;
+    for (const pn of r.placas) { if (P2A[pn]) { d = P2A[pn]; break; } }
     if (!d || d > ate) continue;
     // proposta RECUSADA não é venda (validado com a Eduarda em 14/08: Queila em agosto tinha 28 propostas,
     // 3 recusadas => 25 fechadas). Os demais status (Pendência Vistoria, Análise Rastreador, vazio…) contam.
