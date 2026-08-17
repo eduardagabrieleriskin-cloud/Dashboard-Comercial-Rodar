@@ -76,6 +76,15 @@ function aplicarVendasDaSubscricao(res, subscricaoPath, ate) {
   K.var_junho_julho_pct = variacaoJusta('2026-06', K.vendas_junho.qtde, '2026-07', K.vendas_julho.qtde);
   K.var_julho_agosto_pct = variacaoJusta('2026-07', K.vendas_julho.qtde, '2026-08', K.vendas_agosto.qtde);
 
+  // idem para ate_corte_por_mes / variacao_mes_atual (cards do painel, semáforo): tinham ficado com os
+  // valores calculados dentro de transformador_base.js a partir da BASE, sem a correção da Subscrição
+  // acima — o card do mês atual mostrava um semáforo/variação que não batia com o "vendas_agosto.qtde"
+  // corrigido aqui do lado. Refaz os dois com a mesma fonte (registros da Subscrição).
+  MESES.forEach(mIso => { K.ate_corte_por_mes[mIso] = qtdeAteDia(mIso, K.dia_corte); });
+  delete K.ate_corte_por_mes[K.mes_atual];
+  const idx = MESES.indexOf(K.mes_atual);
+  K.variacao_mes_atual = idx > 0 ? variacaoJusta(MESES[idx - 1], K['vendas_' + MES_NOME[MESES[idx - 1]]].qtde, K.mes_atual, K['vendas_' + MES_NOME[K.mes_atual]].qtde) : null;
+
   return semMatch;
 }
 
