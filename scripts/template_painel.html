@@ -403,7 +403,9 @@ const inicioInput = document.getElementById('periodo-inicio'), fimInput = docume
 const dataMax = D.dates[D.dates.length-1] || '2026-12-31';
 const dataMin = D.dates[0] || '2026-01-01';
 fimInput.value = dataMax; fimInput.max = dataMax; fimInput.min = dataMin;
-inicioInput.value = addDias(dataMax, -29) > dataMin ? addDias(dataMax, -29) : dataMin;
+// Padrão: dia 01 do mês da data de atualização até a própria data de atualização (não mais "últimos 29 dias").
+const inicioMesAtualizacao = dataMax.slice(0,7) + '-01';
+inicioInput.value = inicioMesAtualizacao > dataMin ? inicioMesAtualizacao : dataMin;
 inicioInput.max = dataMax; inicioInput.min = dataMin;
 
 function renderPeriodo(){
