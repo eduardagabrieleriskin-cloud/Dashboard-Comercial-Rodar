@@ -240,9 +240,6 @@
     apenas para esse cruzamento, não para valores. De 62 representantes, 59 foram associados a uma unidade.<br>
     <b>Representante — preenchimento de lacunas:</b> placas sem representante identificado foram preenchidas por inferência
     geográfica (cidade do associado → representante mais frequente na mesma cidade).<br>
-    <b>% Inadimplência e % Perda — fórmula exata:</b> ambos são <b>acumulados</b> (foto da base inteira de hoje, não um recorte
-    mensal). Universo = Ativos + Inadimplentes + Cancelados + Inativos + Pendentes (todas as placas que já existiram na base).
-    % Inadimplência = Inadimplentes ÷ Universo. % Perda = (Cancelados + Inativos) ÷ Universo.<br>
     <b>Vendas Maio/Junho/Julho:</b> para comparar de forma justa, todos os três meses são cortados no <b>mesmo dia do mês</b>
     (o dia de hoje) — ex.: se hoje é dia 27, mostra-se só até o dia 27 de maio e de junho também, não o mês inteiro.<br>
     <b>Visão Placa vs. Visão Cliente:</b> Placa conta cada veículo/placa separadamente. Cliente agrupa pelo mesmo associado
@@ -373,14 +370,7 @@ kpiHtml += mainCard('Carteira em Vigor', K.carteira_qtde, null, K.carteira_ticke
     cls, null, variacao, comparativoMesFechado(mesIso,vObj), sinal);
 });
 
-kpiHtml += miniCard('Inadimplência', num(K.inadimplentes_qtde) + ' placas', 'red', pct(K.pct_inadimplencia) + ' — acumulado, da base toda de hoje');
-
-// Taxa de Perda: geral (acumulado) + detalhamento por mês, todos na mesma data de corte (K.perda_por_mes).
-const NOME_MES = {'2026-05':'Maio','2026-06':'Junho','2026-07':'Julho','2026-08':'Agosto'};
-const perdaDetalheHtml = Object.entries(K.perda_por_mes||{}).map(([mesIso,p])=>
-  `<div class="kpi-sub"><span>${NOME_MES[mesIso]||mesIso} (até dia ${diaCorte})</span><b class="${p.perda_pct>=0.15?'down':''}">${pct(p.perda_pct)}</b></div>`
-).join('');
-kpiHtml += miniCard('Taxa de Perda', pct(K.pct_perda), 'amber', num(K.cancelados_qtde+K.inativos_qtde) + ' canceladas/inativas — acumulado, da base toda de hoje', null, perdaDetalheHtml);
+// Cards de Inadimplência e Taxa de Perda removidos (17/08) — números não faziam sentido para a usuária.
 
 kpiGrid.innerHTML = kpiHtml;
 
