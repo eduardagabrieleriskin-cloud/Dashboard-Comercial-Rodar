@@ -209,6 +209,11 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
     return baseComparavel ? +((qtdeAtualCard - baseComparavel) / baseComparavel).toFixed(4) : 0;
   }
   const vm = vendasMes('2026-05'), vj = vendasMes('2026-06'), vjl = vendasMes('2026-07'), vag = vendasMes('2026-08');
+  // "até dia X" de cada mês FECHADO, na mesma data de corte do mês atual — pedido da Eduarda em 17/08:
+  // dá pra comparar Maio/Junho/Julho com Agosto na mesma régua (todos "até dia 16"), não só o total cheio.
+  const mesesTodos = ['2026-05', '2026-06', '2026-07', '2026-08'];
+  const ateCortePorMes = {};
+  mesesTodos.filter(m => m !== mesAtual).forEach(m => { ateCortePorMes[m] = qtdeMesAteDia(m, diaCorte); });
   const cont = s => regs.filter(x => x.situacao === s);
   const ativos = cont('Ativo'), inad = cont('Inadimplente'), canc = cont('Cancelado'), inat = cont('Inativo'), pend = cont('Pendente');
   const carteira = regs.filter(ehAtivo);
@@ -223,6 +228,13 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
     var_junho_julho_pct: variacaoJusta('2026-06', vj.qtde, '2026-07', vjl.qtde),
     var_julho_agosto_pct: variacaoJusta('2026-07', vjl.qtde, '2026-08', vag.qtde),
     var_junho_julho_ritmo_pct: 0,
+    ate_corte_por_mes: ateCortePorMes,
+    // variação do MÊS ATUAL especificamente (qual das três acima corresponde a ele) — usada pra colorir o
+    // card do mês corrente (verde/amarelo/vermelho) sem precisar saber, do lado do template, qual mês é.
+    variacao_mes_atual: mesAtual === '2026-08' ? variacaoJusta('2026-07', vjl.qtde, '2026-08', vag.qtde)
+      : mesAtual === '2026-07' ? variacaoJusta('2026-06', vj.qtde, '2026-07', vjl.qtde)
+      : mesAtual === '2026-06' ? variacaoJusta('2026-05', vm.qtde, '2026-06', vj.qtde)
+      : null,
     carteira_qtde: carteira.length, carteira_valor: somaVal(carteira),
     carteira_ticket_medio: carteira.length ? +(somaVal(carteira) / carteira.length).toFixed(2) : 0,
     carteira_cobertura_valor_n: carteira.filter(x => x.valor > 0).length,

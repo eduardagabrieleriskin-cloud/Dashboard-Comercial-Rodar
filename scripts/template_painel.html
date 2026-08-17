@@ -303,9 +303,11 @@ function pct(v){ return (v*100).toLocaleString('pt-BR', {maximumFractionDigits:1
 /* ---------------- KPI CARDS ---------------- */
 const kpiGrid = document.getElementById('kpi-grid');
 
-function mainCard(label, qtde, valor, ticket, cls, note, variacao){
+function mainCard(label, qtde, valor, ticket, cls, note, variacao, comparativo){
   const varHtml = (variacao!==undefined && variacao!==null)
     ? `<div class="kpi-sub"><span>Variação vs mês anterior</span><b class="${variacao>=0?'up':'down'}">${variacao>=0?'+':''}${pct(variacao)}</b></div>` : '';
+  const compHtml = comparativo
+    ? `<div class="kpi-sub"><span>${comparativo.rotulo}</span><b>${num(comparativo.valor)}</b></div>` : '';
   return `<div class="kpi ${cls}">
     <div class="kpi-label">${label}</div>
     <div class="kpi-value">${num(qtde)}</div>
@@ -313,6 +315,7 @@ function mainCard(label, qtde, valor, ticket, cls, note, variacao){
     ${valor!=null?`<div class="kpi-sub"><span>Valor</span><b>${brl(valor)}</b></div>`:''}
     <div class="kpi-sub"><span>Ticket médio</span><b>${brl(ticket)}</b></div>
     ${varHtml}
+    ${compHtml}
   </div>`;
 }
 function miniCard(label, value, cls, sub, valueClass){
@@ -328,13 +331,31 @@ const diaCorte = K.dia_corte;
 function rotuloMes(mesIso, nomeMes){
   return mesIso===mesAtualKpi ? `Vendas — ${nomeMes}/26 (parcial, até dia ${diaCorte})` : `Vendas — ${nomeMes}/26 (mês fechado)`;
 }
+// comparativo "até dia X" nos meses FECHADOS, na mesma régua do mês atual — pedido em 17/08: Maio/Junho/Julho
+// mostram além do total cheio quanto tinham vendido até o mesmo dia do mês atual, pra comparar com justiça.
+function comparativoAteCorte(mesIso){
+  const v = K.ate_corte_por_mes && K.ate_corte_por_mes[mesIso];
+  return (mesIso===mesAtualKpi || v==null) ? null : { rotulo: `Até dia ${diaCorte} (comparativo)`, valor: v };
+}
+// semáforo do card do MÊS ATUAL: verde (crescendo), amarelo (leve queda), vermelho (queda forte) — vs. o
+// mês anterior cortado no mesmo dia (K.variacao_mes_atual, calculado em transformador_base.js).
+function clsSemaforo(variacao, clsPadrao){
+  if(variacao==null) return clsPadrao;
+  if(variacao>=0) return 'green';
+  if(variacao>=-0.15) return 'amber';
+  return 'red';
+}
 let kpiHtml = '';
 kpiHtml += mainCard('Carteira em Vigor', K.carteira_qtde, null, K.carteira_ticket_medio, '',
   num(K.ativos_qtde)+' Ativos + '+num(K.inadimplentes_qtde)+' Inadimplentes');
-kpiHtml += mainCard(rotuloMes('2026-05','Maio'), K.vendas_maio.qtde, K.vendas_maio.valor, K.vendas_maio.ticket_medio, 'blue', null);
-kpiHtml += mainCard(rotuloMes('2026-06','Junho'), K.vendas_junho.qtde, K.vendas_junho.valor, K.vendas_junho.ticket_medio, 'blue', null, K.var_maio_junho_pct);
-kpiHtml += mainCard(rotuloMes('2026-07','Julho'), K.vendas_julho.qtde, K.vendas_julho.valor, K.vendas_julho.ticket_medio, 'amber', null, K.var_junho_julho_pct);
-kpiHtml += mainCard(rotuloMes('2026-08','Agosto'), K.vendas_agosto.qtde, K.vendas_agosto.valor, K.vendas_agosto.ticket_medio, 'amber', null, K.var_julho_agosto_pct);
+kpiHtml += mainCard(rotuloMes('2026-05','Maio'), K.vendas_maio.qtde, K.vendas_maio.valor, K.vendas_maio.ticket_medio,
+  clsSemaforo('2026-05'===mesAtualKpi?K.variacao_mes_atual:null,'blue'), null, null, comparativoAteCorte('2026-05'));
+kpiHtml += mainCard(rotuloMes('2026-06','Junho'), K.vendas_junho.qtde, K.vendas_junho.valor, K.vendas_junho.ticket_medio,
+  clsSemaforo('2026-06'===mesAtualKpi?K.variacao_mes_atual:null,'blue'), null, K.var_maio_junho_pct, comparativoAteCorte('2026-06'));
+kpiHtml += mainCard(rotuloMes('2026-07','Julho'), K.vendas_julho.qtde, K.vendas_julho.valor, K.vendas_julho.ticket_medio,
+  clsSemaforo('2026-07'===mesAtualKpi?K.variacao_mes_atual:null,'amber'), null, K.var_junho_julho_pct, comparativoAteCorte('2026-07'));
+kpiHtml += mainCard(rotuloMes('2026-08','Agosto'), K.vendas_agosto.qtde, K.vendas_agosto.valor, K.vendas_agosto.ticket_medio,
+  clsSemaforo('2026-08'===mesAtualKpi?K.variacao_mes_atual:null,'amber'), null, K.var_julho_agosto_pct, comparativoAteCorte('2026-08'));
 
 kpiHtml += miniCard('Inadimplência', num(K.inadimplentes_qtde) + ' placas', 'red', pct(K.pct_inadimplencia) + ' — acumulado, da base toda de hoje');
 kpiHtml += miniCard('Taxa de Perda', pct(K.pct_perda), 'amber', num(K.cancelados_qtde+K.inativos_qtde) + ' canceladas/inativas — acumulado, da base toda de hoje');
@@ -355,6 +376,16 @@ function fmtShortDate(iso){
 }
 function addDias(iso, n){ const d = new Date(iso+'T12:00:00'); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); }
 function rangeDias(ini, fim){ const out=[]; let d=ini; while(d<=fim){ out.push(d); d=addDias(d,1); } return out; }
+// mesmo período (mesmos dias do mês), um mês calendário antes — não os N dias corridos anteriores.
+// Ex.: 01/08–16/08 compara com 01/07–16/07. Dia sem par no mês anterior (ex: 31 em mês de 30 dias) usa o
+// último dia daquele mês.
+function addMeses(iso, n){
+  const [y,m,d] = iso.split('-').map(Number);
+  const alvo = new Date(Date.UTC(y, m-1+n, 1));
+  const ultimoDia = new Date(Date.UTC(alvo.getUTCFullYear(), alvo.getUTCMonth()+1, 0)).getUTCDate();
+  const dia = Math.min(d, ultimoDia);
+  return alvo.getUTCFullYear()+'-'+String(alvo.getUTCMonth()+1).padStart(2,'0')+'-'+String(dia).padStart(2,'0');
+}
 
 const inicioInput = document.getElementById('periodo-inicio'), fimInput = document.getElementById('periodo-fim');
 const dataMax = D.dates[D.dates.length-1] || '2026-12-31';
@@ -371,7 +402,8 @@ function renderPeriodo(){
   const somaAtual = qtdeArr.reduce((a,b)=>a+b,0);
 
   const nDias = dias.length;
-  const finPrev = addDias(ini, -1), iniPrev = addDias(ini, -nDias);
+  // mesmo período, um mês calendário antes (não os N dias corridos que vêm antes de "ini")
+  const iniPrev = addMeses(ini, -1), finPrev = addMeses(fim, -1);
   const diasPrev = rangeDias(iniPrev, finPrev).filter(d => d >= dataMin);
   const somaAnterior = diasPrev.reduce((a,d)=>a+(dailyMap[d]||0),0);
 
@@ -385,7 +417,7 @@ function renderPeriodo(){
     el.className = 'callout ' + (variacao===null?'':(positivo?'up':'down'));
     const seta = variacao===null ? '' : (positivo?'▲ ':'▼ ');
     const rotulo = variacao===null ? 'SEM BASE DE COMPARAÇÃO' : (positivo?'TENDÊNCIA POSITIVA':'TENDÊNCIA NEGATIVA');
-    el.innerHTML = `<span>${seta}<b style="font-size:15px;">${rotulo}:</b> ${fmtShortDate(ini)} a ${fmtShortDate(fim)} (${num(somaAtual)} vendas) vs. ${nDias} dias anteriores (${num(somaAnterior)} vendas):</span>
+    el.innerHTML = `<span>${seta}<b style="font-size:15px;">${rotulo}:</b> ${fmtShortDate(ini)} a ${fmtShortDate(fim)} (${num(somaAtual)} vendas) vs. mesmo período do mês anterior (${fmtShortDate(iniPrev)} a ${fmtShortDate(finPrev)}: ${num(somaAnterior)} vendas):</span>
       ${variacao!==null ? `<b>${positivo?'+':''}${pct(variacao)}</b>` : ''}`;
   }
 
