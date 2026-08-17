@@ -64,11 +64,9 @@ module.exports = function build(subscricaoXlsx, representantesBase, meses, placa
   const semMatch = new Set();
   const registros = []; // {alvo, mes, dataISO, associado} — para recálculos flexíveis (ex: comparação justa por dia)
   for (const r of rows) {
-    // data preferencial: BENEFÍCIO - DATA DE ADESÃO da BASE (data oficial do contrato), pela placa; cai
-    // para a Data Transmissão/Cálculo da Subscrição só quando a placa ainda não apareceu na BASE (pedido
-    // em 17/08 — a data de transmissão pode ficar dias antes/depois da adesão real).
-    let d = r.data;
-    for (const pn of r.placas) { if (P2A[pn]) { d = P2A[pn]; break; } }
+    // data de venda = Data Transmissão/Cálculo (Controle de Subscrição) — confirmado com a usuária em
+    // 17/08 (tentamos trocar para BENEFÍCIO - DATA DE ADESÃO da BASE, ela pediu para manter transmissão).
+    const d = r.data;
     if (!d || d > ate) continue;
     // proposta RECUSADA não é venda (validado com a Eduarda em 14/08: Queila em agosto tinha 28 propostas,
     // 3 recusadas => 25 fechadas). Os demais status (Pendência Vistoria, Análise Rastreador, vazio…) contam.
