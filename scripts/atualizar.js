@@ -19,17 +19,82 @@ const buildBase = require('./transformador_base');
 const buildConversao = require('./transformador_conversao');
 const buildVendas = require('./transformador_vendas');
 const lerSubscricao = require('./leitor_subscricao');
+const lerDescontoEspecial = require('./leitor_desconto_especial');
 
 const MESES = ['2026-05', '2026-06', '2026-07', '2026-08'];
 const MES_NOME = { '2026-05': 'maio', '2026-06': 'junho', '2026-07': 'julho', '2026-08': 'agosto' };
+
+// casamento de nome truncado do PPM (30 chars) x nome completo da BASE — mesma heurística usada em
+// transformador_vendas.js/transformador_conversao.js, reaproveitada aqui para os arquivos avulsos de
+// campanha (ex.: "Desconto especial semana do dia X"), que trazem só o nome do representante, sem placa
+// necessariamente cadastrada na BASE ainda.
+function norm(s) { return (s || '').toString().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim(); }
+function tok(s) { return norm(s).split(' ').filter(Boolean); }
+function commonPrefix(ta, tb) { let n = 0; while (n < ta.length && n < tb.length && ta[n] === tb[n]) n++; return n; }
+function scoreNomes(raw, baseName) {
+  const nc = norm(raw), nb = norm(baseName);
+  if (nc === nb) return 1000;
+  if (nc.length >= 28 && nb.startsWith(nc)) return 900;
+  if (nb.length >= 28 && nc.startsWith(nb)) return 900;
+  const tc = tok(raw), tb = tok(baseName);
+  let s = commonPrefix(tc, tb);
+  if (s < 2 && tc.length >= 2 && tb.length >= 2 && tc[0] === tb[0] && tc[tc.length - 1] === tb[tb.length - 1]) s = 2;
+  return s;
+}
+function acharRepresentante(raw, placa, placaParaRepresentante, representantesBase) {
+  if (placa && placaParaRepresentante[placa]) return placaParaRepresentante[placa];
+  const scored = representantesBase.map(r => ({ nome: r.nome, s: scoreNomes(raw, r.nome) })).filter(x => x.s > 0).sort((a, b) => b.s - a.s);
+  if (!scored.length) return null;
+  if (scored.filter(x => x.s === scored[0].s).length > 1) return null; // empate -> descarta
+  return scored[0].nome;
+}
+
+// Planilhas avulsas de campanha (ex.: "Desconto especial semana do dia 14.xlsx") — adesões que aconteceram
+// FORA do Controle de Subscrição normal e por isso não entrariam na contagem principal. Pedido em 17/08:
+// somar essas adesões ao mês corrente (mesma régua de corte). Retorna registros extras no mesmo formato
+// usado por buildVendas, para entrarem nos mesmos recálculos de porRep/registros logo abaixo.
+function lerExtrasDeCampanha(downloads, mesAtual, representantesBase, placaParaRepresentante) {
+  const arqs = fs.readdirSync(downloads).filter(f => /^desconto especial.*\.xlsx$/i.test(f));
+  const extras = [];
+  for (const f of arqs) {
+    // dia usado pra filtro de corte: extrai do nome do arquivo ("...semana do dia 14...") — a planilha em
+    // si não traz data por linha. Sem casar, cai no dia 1 do mês (entra em qualquer corte, nunca é excluído
+    // por engano; só arrisca contar mesmo se o corte for antes do dia real do arquivo).
+    const diaMatch = f.match(/dia\s*(\d{1,2})/i);
+    const dia = diaMatch ? diaMatch[1].padStart(2, '0') : '01';
+    const linhas = lerDescontoEspecial(path.join(downloads, f));
+    let casadas = 0;
+    for (const l of linhas) {
+      const alvo = acharRepresentante(l.representante, l.placa, placaParaRepresentante, representantesBase);
+      if (!alvo) continue;
+      extras.push({ alvo, mes: mesAtual, dataISO: mesAtual + '-' + dia, associado: norm(l.associado) });
+      casadas++;
+    }
+    log('adesões extras de campanha lidas de ' + f + ': ' + linhas.length + ' (casadas: ' + casadas + ')');
+  }
+  return extras;
+}
 
 // Substitui as contagens de "vendas" (placas fechadas) da BASE pelas do Controle de
 // Subscrição — validado com o Kauan/Daiane: a BASE só conta quem está "Ativo" hoje,
 // subcontando quem fechou no mês mas depois teve status alterado. Subscrição conta a
 // proposta pela data de transmissão, independente do status atual — é o número certo.
 // Valor/ticket médio continuam vindo da BASE (não houve validação separada para R$).
-function aplicarVendasDaSubscricao(res, subscricaoPath, ate) {
+function aplicarVendasDaSubscricao(res, subscricaoPath, ate, downloads) {
   const { porRep, semMatch, registros } = buildVendas(subscricaoPath, res.data.representante, MESES, res.placaParaRepresentante, ate, res.placaParaAdesao);
+
+  // soma as adesões de campanha (fora da Subscrição) ao mês corrente antes de qualquer recálculo abaixo
+  const mesAtual = ate.slice(0, 7);
+  if (downloads) {
+    const extras = lerExtrasDeCampanha(downloads, mesAtual, res.data.representante, res.placaParaRepresentante);
+    extras.forEach(x => {
+      const bucket = porRep[x.alvo] && porRep[x.alvo][x.mes];
+      if (!bucket) return;
+      bucket.placas++;
+      bucket.clientes.add(x.associado);
+      registros.push(x);
+    });
+  }
 
   res.data.representante.forEach(r => {
     MESES.forEach(mIso => {
@@ -204,7 +269,7 @@ try {
   res.data.meta.gerado_em = fmtBR(new Date());
 
   if (subscricao) {
-    const semMatch = aplicarVendasDaSubscricao(res, subscricao.full, ate);
+    const semMatch = aplicarVendasDaSubscricao(res, subscricao.full, ate, DOWNLOADS);
     log('vendas recalculadas a partir de ' + subscricao.f + ' (fonte validada — BASE subcontava quem saiu de "Ativo")'
       + (semMatch.length ? ' | consultores da Subscrição sem match: ' + semMatch.join(', ') : ''));
   } else {
