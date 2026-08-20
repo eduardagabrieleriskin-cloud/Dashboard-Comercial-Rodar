@@ -67,7 +67,25 @@ function parseISO(d) {
   if (!d) return null;
   const p = d.toString().split('/');
   if (p.length !== 3) return null;
-  return p[2] + '-' + p[1].padStart(2, '0') + '-' + p[0].padStart(2, '0');
+  // Auto-detecta formato: BR (D/M/YYYY ou D/M/YY) vs US (M/D/YY)
+  // Se p[0] > 12 (impossível de ser mês), então é D/M (formato BR).
+  // Se p[1] > 12 (impossível de ser dia em D/M), e p[0] <= 12, então é M/D (formato US).
+  // Senão assume D/M por padrão (históricopadrão).
+  const v0 = parseInt(p[0], 10), v1 = parseInt(p[1], 10), v2 = parseInt(p[2], 10);
+  let dia, mes, ano;
+  if (v0 > 12) {
+    // D/M/YY ou D/M/YYYY
+    dia = v0; mes = v1; ano = v2;
+  } else if (v1 > 12) {
+    // M/D/YY — formado americano
+    mes = v0; dia = v1; ano = v2;
+  } else {
+    // Ambíguo — assume D/M por padrão (histórico)
+    dia = v0; mes = v1; ano = v2;
+  }
+  // Normaliza ano para 4 dígitos (20xx para 2000-2099)
+  if (ano < 100) ano += 2000;
+  return String(ano) + '-' + String(mes).padStart(2, '0') + '-' + String(dia).padStart(2, '0');
 }
 function normPlaca(v) {
   const p = (v == null ? '' : v).toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
