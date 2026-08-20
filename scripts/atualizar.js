@@ -178,7 +178,9 @@ const LOG = path.join(__dirname, 'atualizar.log');
 
 function log(m) { const l = '[' + new Date().toISOString() + '] ' + m; console.log(l); try { fs.appendFileSync(LOG, l + '\n'); } catch (e) {} }
 function fmtBR(dt) { return String(dt.getDate()).padStart(2, '0') + '/' + String(dt.getMonth() + 1).padStart(2, '0') + '/' + dt.getFullYear(); }
-function isoHoje() { return new Date().toISOString().slice(0, 10); }
+// corte padrão = ONTEM, não hoje. Regra da Eduarda (19/08): o dia corrente ainda está incompleto no
+// Siprov (adesão entra com atraso), então incluí-lo derruba artificialmente o ritmo do mês.
+function isoOntem() { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); }
 
 function acharMaisRecente(regex) {
   const arqs = fs.readdirSync(DOWNLOADS)
@@ -204,9 +206,9 @@ try {
   const assinatura = base.f + '|' + Math.round(base.m) + '|' + (cotacoes ? cotacoes.f + '|' + Math.round(cotacoes.m) : 'sem-cotacoes')
     + '|' + (subscricao ? subscricao.f + '|' + Math.round(subscricao.m) : 'sem-subscricao');
   const marca = fs.existsSync(MARKER) ? fs.readFileSync(MARKER, 'utf8').trim() : '';
-  if (marca === assinatura) { log('fontes mais recentes já publicadas (' + base.f + (cotacoes ? ' + ' + cotacoes.f : '') + '). Nada novo.'); process.exit(0); }
+  if (marca === assinatura && !process.env.FORCAR) { log('fontes mais recentes já publicadas (' + base.f + (cotacoes ? ' + ' + cotacoes.f : '') + '). Nada novo.'); process.exit(0); }
 
-  const ate = process.env.ATE_OVERRIDE || isoHoje(); // ATE_OVERRIDE=YYYY-MM-DD força o corte (ex: "até ontem" pedido manualmente)
+  const ate = process.env.ATE_OVERRIDE || isoOntem(); // ATE_OVERRIDE=YYYY-MM-DD força o corte (ex: "até ontem" pedido manualmente)
   log('fonte BASE: ' + base.f + ' | fonte Cotações: ' + (cotacoes ? cotacoes.f : '(nenhuma)') + ' | até ' + ate);
 
   // "Relatório de Subscrição" (export diferente do Controle de Subscrição V2): traz Franqueado por
