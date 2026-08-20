@@ -63,29 +63,35 @@ function ehTeste(consultor, loja) {
   if ((loja || '').trim().toLowerCase() === 'teste rodar') return true;
   return n === 'eduarda' || n === 'yara' || n === 'teste' || /^teste?\b/.test(n) || n.includes('(teste)');
 }
-function parseISO(d) {
-  if (!d) return null;
-  const p = d.toString().split('/');
-  if (p.length !== 3) return null;
-  // Auto-detecta formato: BR (D/M/YYYY ou D/M/YY) vs US (M/D/YY)
-  // Se p[0] > 12 (impossível de ser mês), então é D/M (formato BR).
-  // Se p[1] > 12 (impossível de ser dia em D/M), e p[0] <= 12, então é M/D (formato US).
-  // Senão assume D/M por padrão (históricopadrão).
-  const v0 = parseInt(p[0], 10), v1 = parseInt(p[1], 10), v2 = parseInt(p[2], 10);
-  let dia, mes, ano;
-  if (v0 > 12) {
-    // D/M/YY ou D/M/YYYY
-    dia = v0; mes = v1; ano = v2;
-  } else if (v1 > 12) {
-    // M/D/YY — formado americano
-    mes = v0; dia = v1; ano = v2;
-  } else {
-    // Ambíguo — assume D/M por padrão (histórico)
-    dia = v0; mes = v1; ano = v2;
+// O formato da coluna de data NÃO pode ser decidido linha a linha: "8/5/26" é ambíguo (5/ago em M/D,
+// 8/mai em D/M). Chutar D/M jogava toda adesão de agosto com dia <= 12 para outros meses — foi o que
+// criou 581 "adesões" em set/out/nov/dez no export de 20/08 e fez agosto fechar em 248 em vez de 354.
+// Então varremos a COLUNA INTEIRA: se alguma linha tem 2º componente > 12 o arquivo é M/D; se alguma
+// tem 1º > 12 é D/M. Mesma estratégia já usada em leitor_subscricao.js.
+function partesData(v) {
+  const m = String(v == null ? '' : v).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  return m ? [+m[1], +m[2], +m[3]] : null;
+}
+function detectarFormatoData(valores) {
+  let temDia2 = false, temDia1 = false;
+  for (const v of valores) {
+    const p = partesData(v); if (!p) continue;
+    if (p[1] > 12) temDia2 = true;
+    if (p[0] > 12) temDia1 = true;
   }
-  // Normaliza ano para 4 dígitos (20xx para 2000-2099)
+  if (temDia2 && !temDia1) return 'MDY';
+  if (temDia1 && !temDia2) return 'DMY';
+  if (temDia1 && temDia2) throw new Error('coluna DATA DE ADESÃO do BASE tem linhas em D/M E em M/D — export inconsistente');
+  return 'DMY';
+}
+function parseISO(d, formato) {
+  const p = partesData(d); if (!p) return null;
+  let [a, b, ano] = p;
   if (ano < 100) ano += 2000;
-  return String(ano) + '-' + String(mes).padStart(2, '0') + '-' + String(dia).padStart(2, '0');
+  const dia = formato === 'MDY' ? b : a;
+  const mes = formato === 'MDY' ? a : b;
+  if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
+  return ano + '-' + String(mes).padStart(2, '0') + '-' + String(dia).padStart(2, '0');
 }
 function normPlaca(v) {
   const p = (v == null ? '' : v).toString().toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -120,6 +126,7 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
 
   const C = resolverColunas(todasLinhas[linhaHeader]);
   const rows = todasLinhas.slice(dataInicio);
+  const fmtAdesao = detectarFormatoData(rows.map(r => r[C.adesao]));
   const SITU_VALIDAS = ['Ativo', 'Inadimplente', 'Cancelado', 'Inativo', 'Pendente'];
   const dropConsultores = new Set();
 
@@ -196,7 +203,7 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
     regs.push({
       situacao, consultor: quemVendeu || '(Sem Representante)', unidade, placa,
       cpfAssociado: (r[C.cpfAssociado] || '').toString().trim(),
-      adesao: parseISO(r[C.adesao]),
+      adesao: parseISO(r[C.adesao], fmtAdesao),
       valor: toNum(r[C.valorAjust]),
     });
   }
@@ -219,8 +226,10 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
   // meses fechados mostram total do mês inteiro; só o mês atual (o de "ate") é parcial por natureza.
   const mesAtual = ate.slice(0, 7);
   const diaCorte = new Date(ate + 'T12:00:00').getDate();
-  const ehVendaMes = (reg, mes) => reg.adesao && reg.adesao.slice(0, 7) === mes && reg.adesao <= ate;
   const ehAtivo = reg => reg.situacao === 'Ativo' || reg.situacao === 'Inadimplente';
+  // venda conta só Ativo/Inadimplente — definido pela Eduarda em 20/08. Cancelado/Inativo/Pendente saem
+  // da contagem de vendas (continuam nos regs porque a taxa de perda precisa deles).
+  const ehVendaMes = (reg, mes) => ehAtivo(reg) && reg.adesao && reg.adesao.slice(0, 7) === mes && reg.adesao <= ate;
 
   // ---- KPIs ----
   function vendasMes(mes) {
@@ -238,7 +247,7 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
   function diasNoMes(mesIso) { const [ano, m] = mesIso.split('-').map(Number); return new Date(ano, m, 0).getDate(); }
   function limiteMes(mesIso) { return mesIso + '-' + String(Math.min(diaCorte, diasNoMes(mesIso))).padStart(2, '0'); }
   function qtdeMesAteDia(mes, dia) {
-    return regs.filter(x => x.adesao && x.adesao.slice(0, 7) === mes && x.adesao <= mes + '-' + String(dia).padStart(2, '0')).length;
+    return regs.filter(x => ehAtivo(x) && x.adesao && x.adesao.slice(0, 7) === mes && x.adesao <= mes + '-' + String(dia).padStart(2, '0')).length;
   }
   function variacaoJusta(mesAnterior, qtdeAnteriorCheio, mesAtualCard, qtdeAtualCard) {
     if (mesAtualCard !== mesAtual) return qtdeAnteriorCheio ? +((qtdeAtualCard - qtdeAnteriorCheio) / qtdeAnteriorCheio).toFixed(4) : 0;
