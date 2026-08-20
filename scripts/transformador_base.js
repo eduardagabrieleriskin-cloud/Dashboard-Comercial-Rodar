@@ -92,8 +92,16 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
     cpfAssoc2unidade = null } = sinais || {};
   const wb = XLSX.readFile(xlsxPath);
   const todasLinhas = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false });
-  const C = resolverColunas(todasLinhas[1]); // linha 0 = título "BASE", linha 1 = cabeçalho real
-  const rows = todasLinhas.slice(2);
+
+  // Detecta se há linha de título antes do cabeçalho: alguns arquivos têm "BASE" na linha 0,
+  // outros começam direto com cabeçalho. Verifica se linha 0 contém palavras-chave de coluna.
+  const ehCabecalho = (linha) => linha.some(h => h && /ASSOCIADO|BENEFÍCIO|VEÍCULO|ENDEREÇO/.test(h));
+  const temTitulo = !ehCabecalho(todasLinhas[0]);
+  const linhaHeader = temTitulo ? 1 : 0;
+  const dataInicio = temTitulo ? 2 : 1;
+
+  const C = resolverColunas(todasLinhas[linhaHeader]);
+  const rows = todasLinhas.slice(dataInicio);
   const SITU_VALIDAS = ['Ativo', 'Inadimplente', 'Cancelado', 'Inativo', 'Pendente'];
   const dropConsultores = new Set();
 

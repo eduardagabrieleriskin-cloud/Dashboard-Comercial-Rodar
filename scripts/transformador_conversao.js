@@ -73,8 +73,15 @@ module.exports = function build(cotacoesXlsx, baseXlsx, ateISO, representantesBa
   // fechamentos: placas ativas/inadimplentes na BASE
   const wbB = XLSX.readFile(baseXlsx);
   const todasLinhasBase = XLSX.utils.sheet_to_json(wbB.Sheets[wbB.SheetNames[0]], { header: 1, raw: false });
-  const B = resolverColunasBase(todasLinhasBase[1]);
-  const base = todasLinhasBase.slice(2);
+
+  // Detecta se há linha de título: alguns arquivos têm "BASE" na linha 0, outros começam direto com cabeçalho
+  const ehCabecalho = (linha) => linha.some(h => h && /ASSOCIADO|BENEFÍCIO|VEÍCULO|ENDEREÇO/.test(h));
+  const temTitulo = !ehCabecalho(todasLinhasBase[0]);
+  const linhaHeader = temTitulo ? 1 : 0;
+  const dataInicio = temTitulo ? 2 : 1;
+
+  const B = resolverColunasBase(todasLinhasBase[linhaHeader]);
+  const base = todasLinhasBase.slice(dataInicio);
   const fechadas = new Set();
   for (const r of base) {
     const p = np(r[B.placa]);
