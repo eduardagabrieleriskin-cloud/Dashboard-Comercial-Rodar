@@ -227,12 +227,14 @@
         </table>
       </div>
       <div class="warn-note">
-        <b>Por que "Vendas" e "Total (Ativo+Inadimpl.)" não batem?</b> São medidas diferentes, e a diferença é esperada:<br>
-        <b>Vendas</b> é <b>fluxo</b> — placas que aderiram entre maio e agosto. <b>Total (Ativo+Inadimpl.)</b> é
-        <b>estoque</b> — tudo que o representante detém hoje, inclusive contratos anteriores a maio.
-        Um representante antigo tem estoque bem maior que vendas; um que entrou agora tem os dois quase iguais.<br>
-        Exemplo real: um representante com <b>63</b> de estoque e <b>55</b> de vendas — os 8 de diferença aderiram em
-        março e abril, fora da janela.<br>
+        <b>Por que "Vendas" e "Total (Ativo+Inadimpl.)" não batem?</b> São medidas diferentes, e a diferença é esperada — por dois motivos:<br>
+        <b>1. Período.</b> <b>Vendas</b> é <b>fluxo</b>: placas que aderiram entre maio e agosto. <b>Total (Ativo+Inadimpl.)</b> é
+        <b>estoque</b>: tudo que o representante detém hoje, inclusive contratos anteriores a maio. Um representante antigo
+        tem estoque bem maior que vendas; um que entrou agora tem os dois quase iguais.<br>
+        <b>2. Situação.</b> <b>Vendas conta a adesão, em qualquer situação</b> — quem aderiu no mês vendeu, mesmo que
+        o contrato depois tenha cancelado, ficado inativo ou ainda esteja pendente. Já o <b>Total</b> só soma quem está
+        <b>Ativo ou Inadimplente hoje</b>. Por isso um representante pode ter vendas acima do estoque no mesmo período:
+        a diferença é perda, e ela aparece no indicador de <b>taxa de perda</b>, não descontada da venda.<br>
         Uma terceira régua aparece nos cards do topo: lá o mês vigente é cortado no mesmo dia dos meses anteriores
         (para comparar períodos iguais), enquanto esta tabela usa os meses cheios de maio a julho.
       </div>
