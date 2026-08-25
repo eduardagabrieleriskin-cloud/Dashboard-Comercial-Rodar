@@ -284,6 +284,7 @@ try {
   res.data.unidade = res.data.unidade.filter(x => !vazio(x));
   if (removidos.length) log('representantes sem movimento no período (removidos da tabela): ' + removidos.join(', '));
 
+  let avisoConversao = '';
   let conversao = { consultores: [], totais: { total_cotado: 0, total_fechado: 0, conversao: 0,
     total_cotado_cliente: 0, total_fechado_cliente: 0, conversao_cliente: 0,
     por_mes: {}, consultores: 0, sem_cotacao_registrada: 0 }, meses: ['2026-05', '2026-06', '2026-07'] };
@@ -292,15 +293,35 @@ try {
     const ateCotacoes = maxCot && maxCot < ate ? maxCot : ate;
     if (ateCotacoes !== ate) log('cotações mais antigas que a BASE (até ' + maxCot + ') — usando essa data como corte, não "hoje".');
     conversao = buildConversao(cotacoes.full, base.full, ateCotacoes, res.data.representante);
+    conversao.fonte_rotulo = cotacoes.f;
     log('conversão calculada: ' + conversao.consultores.length + ' consultores (' + conversao.totais.sem_cotacao_registrada + ' sem cotação casada) | '
       + conversao.totais.total_fechado + '/' + conversao.totais.total_cotado + ' (' + (conversao.totais.conversao * 100).toFixed(1) + '%)');
   } else {
-    log('AVISO: sem Controle_de_Cotações em Downloads — seção de cotações/conversão ficará vazia.');
+    // Sem Controle_de_Cotações no Downloads a conversão zeraria e a tabela sumiria da tela — pior que
+    // mostrar o número anterior. Então reaproveitamos o bloco de conversão já publicado no index.html e
+    // marcamos na própria seção de qual export ele veio, para ninguém ler como se fosse do dia.
+    // (O "Relatório de Cotações" NÃO serve de substituto: leiaute diferente e ~80% das linhas sem placa,
+    //  o que quebra o cruzamento cotação->fechamento.)
+    log('AVISO: sem Controle_de_Cotações em Downloads.');
+    try {
+      const anterior = fs.readFileSync(OUT, 'utf8')
+        .match(/<script id="conversao-data" type="application\/json">([\s\S]*?)<\/script>/);
+      const prev = anterior && JSON.parse(anterior[1]);
+      if (prev && prev.consultores && prev.consultores.length) {
+        conversao = prev;
+        avisoConversao = 'Cotações desatualizadas: não havia <b>Controle de Cotações V2</b> novo nesta atualização, '
+          + 'então esta seção repete os números de ' + (prev.fonte_rotulo || 'uma exportação anterior')
+          + '. Os demais indicadores do painel são da BASE de hoje.';
+        log('conversão reaproveitada do publish anterior (' + prev.consultores.length + ' consultores) — seção marcada como desatualizada.');
+      } else log('sem conversão anterior para reaproveitar — seção ficará vazia.');
+    } catch (e) { log('não deu para reaproveitar a conversão anterior: ' + e.message); }
   }
 
   let html = fs.readFileSync(TEMPLATE, 'utf8')
     .replace('__DATA__', JSON.stringify(res.data))
     .replace('__CONVERSAO__', JSON.stringify(conversao));
+  html = html.replace('__AVISO_CONVERSAO__', avisoConversao
+    ? '<div class="warn-note" style="border-left:3px solid #d97706"><b>&#9888; </b>' + avisoConversao + '</div>' : '');
 
   // validação
   const j = html.match(/<script id="dashboard-data" type="application\/json">([\s\S]*?)<\/script>/);
