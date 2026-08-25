@@ -227,9 +227,12 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
   const mesAtual = ate.slice(0, 7);
   const diaCorte = new Date(ate + 'T12:00:00').getDate();
   const ehAtivo = reg => reg.situacao === 'Ativo' || reg.situacao === 'Inadimplente';
-  // venda conta só Ativo/Inadimplente — definido pela Eduarda em 20/08. Cancelado/Inativo/Pendente saem
-  // da contagem de vendas (continuam nos regs porque a taxa de perda precisa deles).
-  const ehVendaMes = (reg, mes) => ehAtivo(reg) && reg.adesao && reg.adesao.slice(0, 7) === mes && reg.adesao <= ate;
+  // VENDA = ADESÃO, qualquer situação (Eduarda, 25/08). A adesão aconteceu no mês; se o contrato depois
+  // cancelou, virou inativo ou ainda está pendente, isso é assunto da taxa de perda, não da venda.
+  // (Regra anterior, de 20/08, era só Ativo/Inadimplente — subcontava agosto em 8 placas.)
+  // "Todas as situações" = as de SITU_VALIDAS; Recusado e situação em branco continuam fora, não são adesão.
+  // ehAtivo segue existindo e vale só para o ESTOQUE (carteira) e para a coluna Total do detalhamento.
+  const ehVendaMes = (reg, mes) => reg.adesao && reg.adesao.slice(0, 7) === mes && reg.adesao <= ate;
 
   // ---- KPIs ----
   function vendasMes(mes) {
@@ -247,7 +250,7 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
   function diasNoMes(mesIso) { const [ano, m] = mesIso.split('-').map(Number); return new Date(ano, m, 0).getDate(); }
   function limiteMes(mesIso) { return mesIso + '-' + String(Math.min(diaCorte, diasNoMes(mesIso))).padStart(2, '0'); }
   function qtdeMesAteDia(mes, dia) {
-    return regs.filter(x => ehAtivo(x) && x.adesao && x.adesao.slice(0, 7) === mes && x.adesao <= mes + '-' + String(dia).padStart(2, '0')).length;
+    return regs.filter(x => x.adesao && x.adesao.slice(0, 7) === mes && x.adesao <= mes + '-' + String(dia).padStart(2, '0')).length;
   }
   function variacaoJusta(mesAnterior, qtdeAnteriorCheio, mesAtualCard, qtdeAtualCard) {
     if (mesAtualCard !== mesAtual) return qtdeAnteriorCheio ? +((qtdeAtualCard - qtdeAnteriorCheio) / qtdeAnteriorCheio).toFixed(4) : 0;
