@@ -153,6 +153,32 @@ function aplicarVendasDaSubscricao(res, subscricaoPath, ate, downloads) {
   return semMatch;
 }
 
+// Recalcula SOMENTE o gráfico "Ritmo de Vendas — Diário" a partir do Relatório de Subscrição:
+// 1 linha = 1 proposta transmitida, sem filtro de Atividade/Status. Em 25/08 são 68 linhas.
+// Os cards e o detalhamento continuam sendo PLACAS por Data de Adesão da BASE; substituir tudo por este
+// relatório reduziria indevidamente o mês, pois uma proposta pode conter mais de uma placa.
+function aplicarRitmoDoRelatorioSubscricao(res, relSubscricaoPath, ate) {
+  const lerRelatorioSubscricao = require('./leitor_relatorio_subscricao');
+  const rows = lerRelatorioSubscricao(relSubscricaoPath);
+  const porDia = {};
+  for (const row of rows) {
+    if (!row.data || row.data > ate) continue;
+    porDia[row.data] = (porDia[row.data] || 0) + 1;
+  }
+  const datasComVenda = Object.keys(porDia).filter(d => d >= '2026-02-01');
+  const dmin = datasComVenda.sort()[0] || res.data.daily.dates[0] || '2026-02-13';
+  const dates = [], qtde = [], is_weekday = [];
+  let d = new Date(dmin + 'T12:00:00'); const end = new Date(ate + 'T12:00:00');
+  while (d <= end) {
+    const iso = d.toISOString().slice(0, 10);
+    dates.push(iso); qtde.push(porDia[iso] || 0);
+    const dow = d.getUTCDay(); is_weekday.push(dow !== 0 && dow !== 6);
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  res.data.daily = { dates, qtde, is_weekday };
+  return { linhas: rows.length, noCorte: Object.values(porDia).reduce((s, n) => s + n, 0) };
+}
+
 // data mais recente presente no arquivo de cotações (coluna "Data solicitação", índice 4) —
 // evita que o corte "mesmo dia do mês" distorça a conversão quando o arquivo de cotações
 // está mais antigo que a BASE (ex: BASE de hoje mas cotações de alguns dias atrás)
@@ -203,8 +229,10 @@ try {
     else log(subscricao.f + ': ' + nRows + ' subscrições lidas');
   }
 
+  const relSubscricao = acharMaisRecente(/^Relat[óo]rio de Subscri.*\.xlsx$/i);
   const assinatura = base.f + '|' + Math.round(base.m) + '|' + (cotacoes ? cotacoes.f + '|' + Math.round(cotacoes.m) : 'sem-cotacoes')
-    + '|' + (subscricao ? subscricao.f + '|' + Math.round(subscricao.m) : 'sem-subscricao');
+    + '|' + (subscricao ? subscricao.f + '|' + Math.round(subscricao.m) : 'sem-subscricao')
+    + '|' + (relSubscricao ? relSubscricao.f + '|' + Math.round(relSubscricao.m) : 'sem-relatorio-subscricao');
   const marca = fs.existsSync(MARKER) ? fs.readFileSync(MARKER, 'utf8').trim() : '';
   if (marca === assinatura && !process.env.FORCAR) { log('fontes mais recentes já publicadas (' + base.f + (cotacoes ? ' + ' + cotacoes.f : '') + '). Nada novo.'); process.exit(0); }
 
@@ -216,7 +244,6 @@ try {
   // NÃO serve para contar vendas — ali cada linha é 1 proposta (pode cobrir várias placas), o que daria
   // ~metade das placas reais. Opcional: sem ele, a unidade cai no voto por agência.
   let cpfAssoc2unidade = null;
-  const relSubscricao = acharMaisRecente(/^Relat[óo]rio de Subscri.*\.xlsx$/i);
   if (relSubscricao) {
     const wbR = XLSX.readFile(relSubscricao.full);
     const rowsR = XLSX.utils.sheet_to_json(wbR.Sheets[wbR.SheetNames[0]], { header: 1, raw: false }).slice(2);
@@ -265,6 +292,12 @@ try {
   }
 
   const res = buildBase(base.full, ate, { placa2rep, placa2unidade, placa2repCot, placa2unidadeCot, cpfAssoc2unidade });
+  if (relSubscricao) {
+    const ritmo = aplicarRitmoDoRelatorioSubscricao(res, relSubscricao.full, ate);
+    log('ritmo diário recalculado por Data Transmissão de ' + relSubscricao.f + ' (' + ritmo.linhas + ' linhas; ' + ritmo.noCorte + ' até o corte)');
+  } else {
+    log('AVISO: sem Relatório de Subscrição; ritmo diário permanece pela Data de Adesão da BASE.');
+  }
   if (res.diagnostico.consultoresSemUnidade.length)
     log('AVISO: consultores sem unidade no mapa (caem em "(Sem Unidade)", NÃO são descartados — atualizar mapa_unidades.json): '
       + res.diagnostico.consultoresSemUnidade.join(', '));
