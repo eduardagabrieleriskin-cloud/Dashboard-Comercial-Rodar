@@ -165,7 +165,7 @@
 
   <section>
     <div class="section-head">
-      <div><h2>Ritmo de Vendas — Diário</h2><p>Quantidade de vendas (adesões) por dia, com sobreposição de <b>ativações</b> (placas cujo status virou Ativo/Inadimplente NAQUELE dia no Siprov — pode incluir adesões de dias anteriores). A partir de 25/08/2026 o dado é real (Movimento de Veículo); dias mais antigos usam uma aproximação (adesões daquele dia que seguem ativas hoje). Escolha um período e compare com o período anterior de mesma duração.</p></div>
+      <div><h2>Ritmo de Vendas — Diário</h2><p>Quantidade de vendas (adesões) por dia. Escolha um período e compare com o período anterior de mesma duração.</p></div>
       <div class="ma-controls">
         <label style="font-size:13px; color:var(--muted); font-weight:600;">De:</label>
         <input type="date" id="periodo-inicio" class="ma-select">
@@ -393,7 +393,6 @@ Chart.defaults.color = '#66738C';
 
 const D = DATA.daily;
 const dailyMap = {}; D.dates.forEach((d,i) => dailyMap[d] = D.qtde[i]);
-const dailyAtivasMap = {}; D.dates.forEach((d,i) => dailyAtivasMap[d] = (D.qtde_ativas||[])[i] || 0);
 let dailyChart;
 
 function fmtShortDate(iso){
@@ -427,7 +426,6 @@ function renderPeriodo(){
   if(!ini || !fim || ini > fim) return;
   const dias = rangeDias(ini, fim);
   const qtdeArr = dias.map(d => dailyMap[d] || 0);
-  const ativasArr = dias.map(d => dailyAtivasMap[d] || 0);
   const somaAtual = qtdeArr.reduce((a,b)=>a+b,0);
 
   const nDias = dias.length;
@@ -454,17 +452,13 @@ function renderPeriodo(){
   if(dailyChart) dailyChart.destroy();
   dailyChart = new Chart(document.getElementById('chart-daily'), {
     data:{ labels: labels, datasets:[
-      // grouped:false + mesma categoria = as duas barras ocupam o MESMO slot do dia (sobrepostas,
-      // não lado a lado). A ordem no array já garante que "Ativações" desenha por cima; como
-      // ativação <= venda sempre, a barra clara e mais estreita aparece "dentro" da escura.
-      { type:'bar', label:'Vendas do dia (todas as situações)', data:qtdeArr, backgroundColor:'#1F3864', borderRadius:3, grouped:false, categoryPercentage:0.6, barPercentage:1.0 },
-      { type:'bar', label:'Ativações (Ativo/Inadimplente hoje)', data:ativasArr, backgroundColor:'#38BDF8', borderRadius:2, grouped:false, categoryPercentage:0.28, barPercentage:1.0 }
+      { type:'bar', label:'Vendas do dia', data:qtdeArr, backgroundColor:'#1F3864', borderRadius:3 }
     ]},
     options:{
       responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{display:true, position:'top', align:'end', labels:{boxWidth:12, font:{size:11}}} },
+      plugins:{ legend:{display:false} },
       scales:{
-        x:{ grid:{display:false}, ticks:{maxTicksLimit:16, font:{size:10.5}}, stacked:false },
+        x:{ grid:{display:false}, ticks:{maxTicksLimit:16, font:{size:10.5}} },
         y:{ grid:{color:'#EEF1F6'}, title:{display:true, text:'Vendas por dia'} }
       }
     }

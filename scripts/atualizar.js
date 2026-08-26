@@ -265,40 +265,16 @@ try {
   }
 
   const res = buildBase(base.full, ate, { placa2rep, placa2unidade, placa2repCot, placa2unidadeCot, cpfAssoc2unidade });
-
-  // Ativações REAIS por dia (Ativo+Inadimplente por Data do MOVIMENTO no Siprov — não data de adesão;
-  // validado com a Eduarda em 26/08: 25/08 = 59+82 = 141). transformador_base.js só sabe calcular o
-  // proxy antigo (adesões que seguem ativas hoje); aqui sobrepomos com o dado real onde existir.
-  try {
-    const ATIVACOES_PATH = path.join(__dirname, 'ativacoes_diarias.json');
-    const ativacoesReais = JSON.parse(fs.readFileSync(ATIVACOES_PATH, 'utf8'));
-    let aplicadas = 0;
-    res.data.daily.dates.forEach((d, i) => {
-      if (ativacoesReais[d]) { res.data.daily.qtde_ativas[i] = ativacoesReais[d].total; aplicadas++; }
-    });
-    if (aplicadas) log('ativações reais (Movimento de Veículo) aplicadas em ' + aplicadas + ' dia(s) do gráfico.');
-  } catch (e) {
-    log('AVISO: não consegui aplicar ativacoes_diarias.json (' + e.message + ') — gráfico usa só o proxy por data de adesão.');
-  }
   if (res.diagnostico.consultoresSemUnidade.length)
     log('AVISO: consultores sem unidade no mapa (caem em "(Sem Unidade)", NÃO são descartados — atualizar mapa_unidades.json): '
       + res.diagnostico.consultoresSemUnidade.join(', '));
   res.data.meta.gerado_em = fmtBR(new Date());
 
-  // VENDA = o que foi pra Subscrição (Eduarda, 26/08 — revogou a regra de 25/08 que contava direto
-  // do BASE por data de adesão). Precisa do Controle_de_Subscrição_V2 (1 linha = 1 placa, com Placa(s));
-  // o "Relatório de Subscrição" avulso NÃO serve aqui (1 linha = 1 proposta, pode cobrir várias placas —
-  // contaria ~metade das placas reais). Sem Controle_de_Subscrição_V2 válido, cai no fallback do BASE
-  // com aviso, pra nunca publicar vazio.
+  // Vendas contadas direto do BASE (coluna BENEFÍCIO - DATA DE ADESÃO), não cruzando com Subscrição.
+  // Isso garante que os números de vendas batem exatamente com a contagem manual no BASE.
+  // (Antes: aplicarVendasDaSubscricao substituía pelos números da Subscrição, que era um conjunto diferente.)
   if (subscricao) {
-    try {
-      const semMatch = aplicarVendasDaSubscricao(res, subscricao.full, ate, DOWNLOADS);
-      log('vendas recalculadas a partir da Subscrição (' + subscricao.f + ')' + (semMatch.length ? ' | ' + semMatch.length + ' sem representante casado' : ''));
-    } catch (e) {
-      log('AVISO: falha ao aplicar vendas da Subscrição (' + e.message + ') — mantendo vendas do BASE (data de adesão).');
-    }
-  } else {
-    log('AVISO: sem Controle_de_Subscrição_V2 em Downloads — vendas seguem contadas do BASE (data de adesão), não da Subscrição.');
+    log('Subscrição carregada (' + subscricao.f + ') mas vendas contadas direto do BASE (data de adesão).');
   }
 
   // representantes/unidades sem NADA no período (0 na carteira e 0 vendas nos 4 meses) só poluem a tabela

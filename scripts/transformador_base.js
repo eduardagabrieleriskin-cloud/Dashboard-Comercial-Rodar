@@ -354,23 +354,18 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
 
   // ---- série diária + médias móveis (dias úteis) ----
   const vendasPeriodo = regs.filter(x => x.adesao && x.adesao >= '2026-02-01' && x.adesao <= ate);
-  const porDia = {}, porDiaAtivas = {};
-  vendasPeriodo.forEach(x => {
-    porDia[x.adesao] = (porDia[x.adesao] || 0) + 1;
-    // "ativações" = das adesões daquele dia, quantas seguem Ativo/Inadimplente HOJE (sobrepõe à
-    // venda bruta pra mostrar visualmente quanto cada leva de adesões "grudou"). Pedido 26/08.
-    if (ehAtivo(x)) porDiaAtivas[x.adesao] = (porDiaAtivas[x.adesao] || 0) + 1;
-  });
+  const porDia = {};
+  vendasPeriodo.forEach(x => { porDia[x.adesao] = (porDia[x.adesao] || 0) + 1; });
   const dmin = vendasPeriodo.map(x => x.adesao).sort()[0] || '2026-02-13';
-  const dates = [], qtde = [], qtde_ativas = [], is_weekday = [];
+  const dates = [], qtde = [], is_weekday = [];
   let d = new Date(dmin + 'T12:00:00'); const end = new Date(ate + 'T12:00:00');
   while (d <= end) {
     const iso = d.toISOString().slice(0, 10);
-    dates.push(iso); qtde.push(porDia[iso] || 0); qtde_ativas.push(porDiaAtivas[iso] || 0);
+    dates.push(iso); qtde.push(porDia[iso] || 0);
     const dow = d.getUTCDay(); is_weekday.push(dow !== 0 && dow !== 6);
     d.setUTCDate(d.getUTCDate() + 1);
   }
-  const daily = { dates, qtde, qtde_ativas, is_weekday };
+  const daily = { dates, qtde, is_weekday };
 
   return {
     data: { kpis, unidade, representante, daily, meta: { gerado_em: '__HOJE__', periodo: 'Maio a Agosto de 2026 (até ' + ate.split('-').reverse().join('/') + ')' } },

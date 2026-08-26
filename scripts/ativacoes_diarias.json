@@ -1,5 +1,0 @@
-{
-  "_comentario": "Ativações reais por dia (Ativo+Inadimplente por Data do Movimento no Siprov, não data de adesão). Alimentado por siprov-automacao/src/contador-ativacoes.js, 1 dia por execução da rotina diária (26/08/2026 em diante). Dias sem entrada aqui usam o proxy antigo em transformador_base.js (adesões que seguem ativas hoje) — menos preciso, mas é o que dá pra reconstruir de dados já publicados.",
-  "2026-08-24": { "ativo": 102, "inadimplente": 72, "total": 174 },
-  "2026-08-25": { "ativo": 59, "inadimplente": 82, "total": 141 }
-}
