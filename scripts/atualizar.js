@@ -270,11 +270,20 @@ try {
       + res.diagnostico.consultoresSemUnidade.join(', '));
   res.data.meta.gerado_em = fmtBR(new Date());
 
-  // Vendas contadas direto do BASE (coluna BENEFÍCIO - DATA DE ADESÃO), não cruzando com Subscrição.
-  // Isso garante que os números de vendas batem exatamente com a contagem manual no BASE.
-  // (Antes: aplicarVendasDaSubscricao substituía pelos números da Subscrição, que era um conjunto diferente.)
+  // VENDA = o que foi pra Subscrição (Eduarda, 26/08 — revogou a regra de 25/08 que contava direto
+  // do BASE por data de adesão). Precisa do Controle_de_Subscrição_V2 (1 linha = 1 placa, com Placa(s));
+  // o "Relatório de Subscrição" avulso NÃO serve aqui (1 linha = 1 proposta, pode cobrir várias placas —
+  // contaria ~metade das placas reais). Sem Controle_de_Subscrição_V2 válido, cai no fallback do BASE
+  // com aviso, pra nunca publicar vazio.
   if (subscricao) {
-    log('Subscrição carregada (' + subscricao.f + ') mas vendas contadas direto do BASE (data de adesão).');
+    try {
+      const semMatch = aplicarVendasDaSubscricao(res, subscricao.full, ate, DOWNLOADS);
+      log('vendas recalculadas a partir da Subscrição (' + subscricao.f + ')' + (semMatch.length ? ' | ' + semMatch.length + ' sem representante casado' : ''));
+    } catch (e) {
+      log('AVISO: falha ao aplicar vendas da Subscrição (' + e.message + ') — mantendo vendas do BASE (data de adesão).');
+    }
+  } else {
+    log('AVISO: sem Controle_de_Subscrição_V2 em Downloads — vendas seguem contadas do BASE (data de adesão), não da Subscrição.');
   }
 
   // representantes/unidades sem NADA no período (0 na carteira e 0 vendas nos 4 meses) só poluem a tabela
