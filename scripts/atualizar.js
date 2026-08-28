@@ -291,35 +291,62 @@ try {
   res.data.unidade = res.data.unidade.filter(x => !vazio(x));
   if (removidos.length) log('representantes sem movimento no período (removidos da tabela): ' + removidos.join(', '));
 
+  // Detecta conversão CORROMPIDA: quando o cruzamento cotação<->fechamento falha (ex.: export do
+  // Cockpit Cotação com colunas em ordem diferente do "Controle_de_Cotações_V2" manual, lido por ÍNDICE
+  // fixo em transformador_conversao.js), TODO mundo casa "cotado === fechado" e a tabela mostra 100% em
+  // tudo — silenciosamente errado. Aconteceu em 26/08 com um export automático e ficou se reaproveitando
+  // por 2 dias sem ninguém perceber, até a Eduarda notar direto na tela. Sinal: total_fechado ===
+  // total_cotado com total_cotado > 0 (conversão perfeita agregada é praticamente impossível na prática).
+  function conversaoCorrompida(c) {
+    return !!(c && c.totais && c.totais.total_cotado > 0 && c.totais.total_fechado === c.totais.total_cotado);
+  }
+
   let avisoConversao = '';
   let conversao = { consultores: [], totais: { total_cotado: 0, total_fechado: 0, conversao: 0,
     total_cotado_cliente: 0, total_fechado_cliente: 0, conversao_cliente: 0,
     por_mes: {}, consultores: 0, sem_cotacao_registrada: 0 }, meses: ['2026-05', '2026-06', '2026-07'] };
+  let conversaoOk = false;
   if (cotacoes) {
     const maxCot = maxDataCotacoes(cotacoes.full);
     const ateCotacoes = maxCot && maxCot < ate ? maxCot : ate;
     if (ateCotacoes !== ate) log('cotações mais antigas que a BASE (até ' + maxCot + ') — usando essa data como corte, não "hoje".');
-    conversao = buildConversao(cotacoes.full, base.full, ateCotacoes, res.data.representante);
-    conversao.fonte_rotulo = cotacoes.f;
-    log('conversão calculada: ' + conversao.consultores.length + ' consultores (' + conversao.totais.sem_cotacao_registrada + ' sem cotação casada) | '
-      + conversao.totais.total_fechado + '/' + conversao.totais.total_cotado + ' (' + (conversao.totais.conversao * 100).toFixed(1) + '%)');
+    const calculada = buildConversao(cotacoes.full, base.full, ateCotacoes, res.data.representante);
+    if (conversaoCorrompida(calculada)) {
+      log('AVISO: conversão calculada de ' + cotacoes.f + ' saiu com 100% em tudo (cotado===fechado) — sinal de'
+        + ' cruzamento quebrado (leiaute do export mudou?). Descartando e caindo no fallback.');
+    } else {
+      conversao = calculada;
+      conversao.fonte_rotulo = cotacoes.f;
+      conversaoOk = true;
+      log('conversão calculada: ' + conversao.consultores.length + ' consultores (' + conversao.totais.sem_cotacao_registrada + ' sem cotação casada) | '
+        + conversao.totais.total_fechado + '/' + conversao.totais.total_cotado + ' (' + (conversao.totais.conversao * 100).toFixed(1) + '%)');
+    }
   } else {
-    // Sem Controle_de_Cotações no Downloads a conversão zeraria e a tabela sumiria da tela — pior que
-    // mostrar o número anterior. Então reaproveitamos o bloco de conversão já publicado no index.html e
-    // marcamos na própria seção de qual export ele veio, para ninguém ler como se fosse do dia.
+    log('AVISO: sem Controle_de_Cotações em Downloads.');
+  }
+  if (!conversaoOk) {
+    // Sem cotação nova (ou corrompida): reaproveita o bloco já publicado — mas só se ELE TAMBÉM não
+    // estiver corrompido, senão a corrupção se perpetua pra sempre. Se estiver, cai no snapshot estático
+    // de 21/08 (última leitura manual válida, ver scripts/conversao_fallback_2026-08-21.json).
     // (O "Relatório de Cotações" NÃO serve de substituto: leiaute diferente e ~80% das linhas sem placa,
     //  o que quebra o cruzamento cotação->fechamento.)
-    log('AVISO: sem Controle_de_Cotações em Downloads.');
     try {
       const anterior = fs.readFileSync(OUT, 'utf8')
         .match(/<script id="conversao-data" type="application\/json">([\s\S]*?)<\/script>/);
-      const prev = anterior && JSON.parse(anterior[1]);
+      let prev = anterior && JSON.parse(anterior[1]);
+      if (prev && conversaoCorrompida(prev)) {
+        log('AVISO: conversão do publish anterior TAMBÉM está corrompida (' + (prev.fonte_rotulo || '?') + ') — não reaproveita, cai no snapshot estático de 21/08.');
+        prev = null;
+      }
+      if (!prev || !prev.consultores || !prev.consultores.length) {
+        prev = JSON.parse(fs.readFileSync(path.join(__dirname, 'conversao_fallback_2026-08-21.json'), 'utf8'));
+      }
       if (prev && prev.consultores && prev.consultores.length) {
         conversao = prev;
-        avisoConversao = 'Cotações desatualizadas: não havia <b>Controle de Cotações V2</b> novo nesta atualização, '
+        avisoConversao = 'Cotações desatualizadas: não havia <b>Controle de Cotações V2</b> válido nesta atualização, '
           + 'então esta seção repete os números de ' + (prev.fonte_rotulo || 'uma exportação anterior')
           + '. Os demais indicadores do painel são da BASE de hoje.';
-        log('conversão reaproveitada do publish anterior (' + prev.consultores.length + ' consultores) — seção marcada como desatualizada.');
+        log('conversão reaproveitada (' + (prev.fonte_rotulo || '?') + ', ' + prev.consultores.length + ' consultores) — seção marcada como desatualizada.');
       } else log('sem conversão anterior para reaproveitar — seção ficará vazia.');
     } catch (e) { log('não deu para reaproveitar a conversão anterior: ' + e.message); }
   }
