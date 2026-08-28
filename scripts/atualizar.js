@@ -156,17 +156,18 @@ function aplicarVendasDaSubscricao(res, subscricaoPath, ate, downloads) {
 // data mais recente presente no arquivo de cotações (coluna "Data solicitação", índice 4) —
 // evita que o corte "mesmo dia do mês" distorça a conversão quando o arquivo de cotações
 // está mais antigo que a BASE (ex: BASE de hoje mas cotações de alguns dias atrás)
-// Recalcula o gráfico "Ritmo de Vendas — Diário" a partir do Relatório de Subscrição (1 linha = 1
-// proposta transmitida, sem filtro de Atividade/Status — confirmado com a Eduarda: 25/08 tinha 68
-// linhas nesse relatório e é o número que ela via no Siprov). Os cards do topo e o detalhamento
-// continuam pela Data de Adesão da BASE (não mexe em res.data.kpis nem representante/unidade aqui).
-function aplicarRitmoDoRelatorioSubscricao(res, relSubscricaoPath, ate) {
-  const lerRelatorioSubscricao = require('./leitor_relatorio_subscricao');
-  const rows = lerRelatorioSubscricao(relSubscricaoPath);
+// Recalcula o gráfico "Ritmo de Vendas — Diário" a partir do Controle de Subscrição V2 (Cockpit
+// Subscrição), contando PLACAS (não propostas) por Data Transmissão/Cálculo. Pedido da Eduarda em
+// 28/08: o "Relatório de Subscrição" (1 linha = 1 proposta, sem coluna de placa) subcontava quando uma
+// proposta cobria mais de uma placa; o Controle de Subscrição V2 traz "Placa(s)" por linha — cada placa
+// da célula conta 1x, então uma proposta multi-placa pesa certo no dia. Os cards do topo e o
+// detalhamento continuam pela Data de Adesão da BASE (não mexe em res.data.kpis/representante aqui).
+function aplicarRitmoDoSubscricao(res, subscricaoPath, ate) {
+  const rows = lerSubscricao(subscricaoPath);
   const porDia = {};
   for (const row of rows) {
     if (!row.data || row.data > ate) continue;
-    porDia[row.data] = (porDia[row.data] || 0) + 1;
+    porDia[row.data] = (porDia[row.data] || 0) + row.placas.length;
   }
   const datasComVenda = Object.keys(porDia).filter(d => d >= '2026-02-01');
   const dmin = datasComVenda.sort()[0] || res.data.daily.dates[0] || '2026-02-13';
@@ -292,26 +293,28 @@ try {
   }
 
   const res = buildBase(base.full, ate, { placa2rep, placa2unidade, placa2repCot, placa2unidadeCot, cpfAssoc2unidade });
-  // Gráfico "Ritmo de Vendas — Diário" = Relatório de Subscrição por Data Transmissão. Decisão final da
-  // Eduarda em 28/08 (pediu 3x de formas diferentes): É ESSA a fonte, ponto — mesmo sabendo que ela
-  // atrasa mais que a Data de Adesão da BASE nos últimos 1-2 dias (o dia mais recente do gráfico vai
+  // Gráfico "Ritmo de Vendas — Diário" = Controle de Subscrição V2, contando PLACAS por Data
+  // Transmissão/Cálculo. Decisão final da Eduarda em 28/08 (pediu 3x de formas diferentes até eu
+  // entender): É ESSA a fonte — e "placas", não "propostas" (uma proposta pode cobrir mais de 1 placa;
+  // o Relatório de Subscrição avulso não tem coluna de placa e foi descartado por causa disso).
+  // Atrasa mais que a Data de Adesão da BASE nos últimos 1-2 dias (o dia mais recente do gráfico vai
   // parecer baixo e subir nas próximas atualizações; isso é esperado, não é bug de novo).
-  if (relSubscricao) {
-    const ritmo = aplicarRitmoDoRelatorioSubscricao(res, relSubscricao.full, ate);
-    log('ritmo diário recalculado por Data Transmissão de ' + relSubscricao.f + ' (' + ritmo.linhas + ' linhas; ' + ritmo.noCorte + ' até o corte)');
+  if (subscricao) {
+    const ritmo = aplicarRitmoDoSubscricao(res, subscricao.full, ate);
+    log('ritmo diário recalculado por Data Transmissão (placas) de ' + subscricao.f + ' (' + ritmo.linhas + ' propostas; ' + ritmo.noCorte + ' placas até o corte)');
   } else {
-    log('AVISO: sem Relatório de Subscrição em Downloads — ritmo diário fica pela Data de Adesão da BASE (fallback).');
+    log('AVISO: sem Controle_de_Subscrição_V2 em Downloads — ritmo diário fica pela Data de Adesão da BASE (fallback).');
   }
   if (res.diagnostico.consultoresSemUnidade.length)
     log('AVISO: consultores sem unidade no mapa (caem em "(Sem Unidade)", NÃO são descartados — atualizar mapa_unidades.json): '
       + res.diagnostico.consultoresSemUnidade.join(', '));
   res.data.meta.gerado_em = fmtBR(new Date());
 
-  // Vendas contadas direto do BASE (coluna BENEFÍCIO - DATA DE ADESÃO), não cruzando com Subscrição.
-  // Isso garante que os números de vendas batem exatamente com a contagem manual no BASE.
-  // (Antes: aplicarVendasDaSubscricao substituía pelos números da Subscrição, que era um conjunto diferente.)
+  // Cards do topo e Detalhamento: vendas contadas direto do BASE (BENEFÍCIO - DATA DE ADESÃO), não
+  // cruzando com Subscrição — bate com a contagem manual no BASE. (O gráfico diário JÁ foi recalculado
+  // pela Subscrição/placas logo acima; aqui é só o resto do painel, que continua na régua da BASE.)
   if (subscricao) {
-    log('Subscrição carregada (' + subscricao.f + ') mas vendas contadas direto do BASE (data de adesão).');
+    log('Subscrição carregada (' + subscricao.f + ') — usada no gráfico diário; cards/detalhamento seguem pelo BASE (data de adesão).');
   }
 
   // representantes/unidades sem NADA no período (0 na carteira e 0 vendas nos 4 meses) só poluem a tabela
