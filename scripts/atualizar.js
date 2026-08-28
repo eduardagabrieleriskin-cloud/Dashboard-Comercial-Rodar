@@ -156,6 +156,32 @@ function aplicarVendasDaSubscricao(res, subscricaoPath, ate, downloads) {
 // data mais recente presente no arquivo de cotações (coluna "Data solicitação", índice 4) —
 // evita que o corte "mesmo dia do mês" distorça a conversão quando o arquivo de cotações
 // está mais antigo que a BASE (ex: BASE de hoje mas cotações de alguns dias atrás)
+// Recalcula o gráfico "Ritmo de Vendas — Diário" a partir do Relatório de Subscrição (1 linha = 1
+// proposta transmitida, sem filtro de Atividade/Status — confirmado com a Eduarda: 25/08 tinha 68
+// linhas nesse relatório e é o número que ela via no Siprov). Os cards do topo e o detalhamento
+// continuam pela Data de Adesão da BASE (não mexe em res.data.kpis nem representante/unidade aqui).
+function aplicarRitmoDoRelatorioSubscricao(res, relSubscricaoPath, ate) {
+  const lerRelatorioSubscricao = require('./leitor_relatorio_subscricao');
+  const rows = lerRelatorioSubscricao(relSubscricaoPath);
+  const porDia = {};
+  for (const row of rows) {
+    if (!row.data || row.data > ate) continue;
+    porDia[row.data] = (porDia[row.data] || 0) + 1;
+  }
+  const datasComVenda = Object.keys(porDia).filter(d => d >= '2026-02-01');
+  const dmin = datasComVenda.sort()[0] || res.data.daily.dates[0] || '2026-02-13';
+  const dates = [], qtde = [], is_weekday = [];
+  let d = new Date(dmin + 'T12:00:00'); const end = new Date(ate + 'T12:00:00');
+  while (d <= end) {
+    const iso = d.toISOString().slice(0, 10);
+    dates.push(iso); qtde.push(porDia[iso] || 0);
+    const dow = d.getUTCDay(); is_weekday.push(dow !== 0 && dow !== 6);
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  res.data.daily = { dates, qtde, is_weekday };
+  return { linhas: rows.length, noCorte: Object.values(porDia).reduce((s, n) => s + n, 0) };
+}
+
 function maxDataCotacoes(xlsxPath) {
   const wb = XLSX.readFile(xlsxPath);
   const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false }).slice(2);
@@ -266,12 +292,16 @@ try {
   }
 
   const res = buildBase(base.full, ate, { placa2rep, placa2unidade, placa2repCot, placa2unidadeCot, cpfAssoc2unidade });
-  // Gráfico "Ritmo de Vendas — Diário" usa a Data de Adesão da BASE (já calculado dentro de buildBase,
-  // sem sobrepor com nada aqui). Testado em 27/08: a Subscrição atrasa MAIS que a BASE (25/08 tinha só
-  // 68 linhas transmitidas até 26/08, mas a BASE de 27/08 já mostra 93 adesões reais em 25/08 — o
-  // Siprov processa registros com atraso e cada nova exportação AUTOCORRIGE os dias recentes pra cima).
-  // Usar a Subscrição travava o gráfico no valor "do dia", sem nunca se atualizar depois. Confirmado
-  // com a Eduarda: 26/08=52 e 25/08=93, exatamente o que a BASE de hoje já dava sem precisar de nada extra.
+  // Gráfico "Ritmo de Vendas — Diário" = Relatório de Subscrição por Data Transmissão. Decisão final da
+  // Eduarda em 28/08 (pediu 3x de formas diferentes): É ESSA a fonte, ponto — mesmo sabendo que ela
+  // atrasa mais que a Data de Adesão da BASE nos últimos 1-2 dias (o dia mais recente do gráfico vai
+  // parecer baixo e subir nas próximas atualizações; isso é esperado, não é bug de novo).
+  if (relSubscricao) {
+    const ritmo = aplicarRitmoDoRelatorioSubscricao(res, relSubscricao.full, ate);
+    log('ritmo diário recalculado por Data Transmissão de ' + relSubscricao.f + ' (' + ritmo.linhas + ' linhas; ' + ritmo.noCorte + ' até o corte)');
+  } else {
+    log('AVISO: sem Relatório de Subscrição em Downloads — ritmo diário fica pela Data de Adesão da BASE (fallback).');
+  }
   if (res.diagnostico.consultoresSemUnidade.length)
     log('AVISO: consultores sem unidade no mapa (caem em "(Sem Unidade)", NÃO são descartados — atualizar mapa_unidades.json): '
       + res.diagnostico.consultoresSemUnidade.join(', '));
