@@ -340,6 +340,7 @@ try {
       }
       if (!prev || !prev.consultores || !prev.consultores.length) {
         prev = JSON.parse(fs.readFileSync(path.join(__dirname, 'conversao_fallback_2026-08-21.json'), 'utf8'));
+        prev.fonte_rotulo = prev.fonte_rotulo || 'Controle_de_Cotações_V2_2026-08-21.xlsx (snapshot estático)';
       }
       if (prev && prev.consultores && prev.consultores.length) {
         conversao = prev;
