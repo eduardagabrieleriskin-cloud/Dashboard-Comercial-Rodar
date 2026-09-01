@@ -47,7 +47,21 @@ function resolverColunas(headerRow) {
   }
   return idx;
 }
-const MESES = ['2026-05', '2026-06', '2026-07', '2026-08'];
+// Janela MÓVEL de 4 meses (mês mais antigo cai, mês novo entra), terminando sempre no mês de "ate" —
+// pedido da Eduarda em 01/09/2026 pra não quebrar na virada mai-jun-jul-ago -> jun-jul-ago-set. Nada
+// mais no pipeline pode hardcodar nome de mês: os 4 nomes da janela vêm em kpis.janela (ver build()).
+const NOMES_MES_PT = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+function nomeMes(mesIso) { return NOMES_MES_PT[+mesIso.split('-')[1] - 1]; }
+function janelaMeses(ateISO, n) {
+  const [anoAte, mesAteNum] = ateISO.split('-').slice(0, 2).map(Number);
+  const out = [];
+  for (let i = n - 1; i >= 0; i--) {
+    let m = mesAteNum - i, a = anoAte;
+    while (m <= 0) { m += 12; a -= 1; }
+    out.push(a + '-' + String(m).padStart(2, '0'));
+  }
+  return out; // [mais antigo, ..., mês de "ate"]
+}
 
 function titleCase(s) {
   return (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ')
@@ -225,6 +239,7 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
   const ate = ateISO || '2026-12-31';
   // meses fechados mostram total do mês inteiro; só o mês atual (o de "ate") é parcial por natureza.
   const mesAtual = ate.slice(0, 7);
+  const janela = janelaMeses(ate, 4); // [mais antigo .. mesAtual], sempre 4 meses
   const diaCorte = new Date(ate + 'T12:00:00').getDate();
   const ehAtivo = reg => reg.situacao === 'Ativo' || reg.situacao === 'Inadimplente';
   // VENDA = ADESÃO, qualquer situação (Eduarda, 25/08). A adesão aconteceu no mês; se o contrato depois
@@ -266,36 +281,37 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
     const perdidos = v.filter(x => x.situacao === 'Cancelado' || x.situacao === 'Inativo').length;
     return { qtde: v.length, perda_qtde: perdidos, perda_pct: v.length ? +(perdidos / v.length).toFixed(4) : 0 };
   }
-  const vm = vendasMes('2026-05'), vj = vendasMes('2026-06'), vjl = vendasMes('2026-07'), vag = vendasMes('2026-08');
+  // vendasPorMes[0..3] alinhado com janela[0..3] (mais antigo -> mês atual)
+  const vendasPorMes = janela.map(m => vendasMes(m));
+  const [vm, vj, vjl, vag] = vendasPorMes;
   // "até dia X" de cada mês FECHADO, na mesma data de corte do mês atual — pedido da Eduarda em 17/08:
-  // dá pra comparar Maio/Junho/Julho com Agosto na mesma régua (todos "até dia 16"), não só o total cheio.
-  const mesesTodos = ['2026-05', '2026-06', '2026-07', '2026-08'];
+  // dá pra comparar os meses fechados com o atual na mesma régua (todos "até dia 16"), não só o total cheio.
   const ateCortePorMes = {};
-  mesesTodos.filter(m => m !== mesAtual).forEach(m => { ateCortePorMes[m] = qtdeMesAteDia(m, diaCorte); });
+  janela.filter(m => m !== mesAtual).forEach(m => { ateCortePorMes[m] = qtdeMesAteDia(m, diaCorte); });
   const perdaPorMes = {};
-  mesesTodos.forEach(m => { perdaPorMes[m] = perdaAteCorte(m); });
+  janela.forEach(m => { perdaPorMes[m] = perdaAteCorte(m); });
   const cont = s => regs.filter(x => x.situacao === s);
   const ativos = cont('Ativo'), inad = cont('Inadimplente'), canc = cont('Cancelado'), inat = cont('Inativo'), pend = cont('Pendente');
   const carteira = regs.filter(ehAtivo);
   const somaVal = arr => +arr.reduce((s, x) => s + x.valor, 0).toFixed(2);
   const universo = ativos.length + inad.length + canc.length + inat.length + pend.length;
   // dias úteis do período de julho até "ate" para o ritmo
+  // "janela" para o template montar os 4 cards/colunas SEM hardcodar nome de mês — campo é sempre
+  // "vendas_<nomedomês>" (ex.: vendas_junho, vendas_setembro), igual já era, só que o NOME muda com o tempo.
+  const janelaMeta = janela.map(iso => ({ iso, nome: nomeMes(iso), campo: 'vendas_' + nomeMes(iso) }));
+  const variacoes = []; // variacoes[i] = variação do mês janela[i+1] vs janela[i], já pela régua justa
+  for (let i = 1; i < janela.length; i++) variacoes.push(variacaoJusta(janela[i - 1], vendasPorMes[i - 1].qtde, janela[i], vendasPorMes[i].qtde));
+
   const kpis = {
     data_ultima_venda: regs.filter(x => x.adesao && x.adesao <= ate).map(x => x.adesao).sort().pop() || ate,
     data_referencia: ate, mes_atual: mesAtual, dia_corte: diaCorte,
-    vendas_maio: vm, vendas_junho: vj, vendas_julho: vjl, vendas_agosto: vag,
-    var_maio_junho_pct: variacaoJusta('2026-05', vm.qtde, '2026-06', vj.qtde),
-    var_junho_julho_pct: variacaoJusta('2026-06', vj.qtde, '2026-07', vjl.qtde),
-    var_julho_agosto_pct: variacaoJusta('2026-07', vjl.qtde, '2026-08', vag.qtde),
-    var_junho_julho_ritmo_pct: 0,
+    janela: janelaMeta, // [{iso,nome,campo}] mais antigo -> atual; o template itera isso pros 4 cards/colunas
+    variacoes_janela: variacoes, // variacoes[0] = janela[1] vs janela[0], variacoes[1] = janela[2] vs janela[1], etc (3 valores)
     ate_corte_por_mes: ateCortePorMes,
     perda_por_mes: perdaPorMes,
-    // variação do MÊS ATUAL especificamente (qual das três acima corresponde a ele) — usada pra colorir o
-    // card do mês corrente (verde/amarelo/vermelho) sem precisar saber, do lado do template, qual mês é.
-    variacao_mes_atual: mesAtual === '2026-08' ? variacaoJusta('2026-07', vjl.qtde, '2026-08', vag.qtde)
-      : mesAtual === '2026-07' ? variacaoJusta('2026-06', vj.qtde, '2026-07', vjl.qtde)
-      : mesAtual === '2026-06' ? variacaoJusta('2026-05', vm.qtde, '2026-06', vj.qtde)
-      : null,
+    // variação do MÊS ATUAL = a última da janela — usada pra colorir o card do mês corrente
+    // (verde/amarelo/vermelho) sem o template precisar saber qual mês é.
+    variacao_mes_atual: variacoes[variacoes.length - 1] ?? null,
     carteira_qtde: carteira.length, carteira_valor: somaVal(carteira),
     carteira_ticket_medio: carteira.length ? +(somaVal(carteira) / carteira.length).toFixed(2) : 0,
     carteira_cobertura_valor_n: carteira.filter(x => x.valor > 0).length,
@@ -307,27 +323,23 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
     pct_inadimplencia: universo ? +(inad.length / universo).toFixed(4) : 0,
     pct_perda: universo ? +((canc.length + inat.length) / universo).toFixed(4) : 0,
   };
-  // variação de ritmo (vendas por dia útil) junho -> julho
-  const diasUteis = (ini, fim) => { let c = 0, dd = new Date(ini + 'T12:00:00'), ee = new Date(fim + 'T12:00:00'); while (dd <= ee) { const w = dd.getUTCDay(); if (w !== 0 && w !== 6) c++; dd.setUTCDate(dd.getUTCDate() + 1); } return c; };
-  const duJun = diasUteis('2026-06-01', '2026-06-30');
-  const duJul = diasUteis('2026-07-01', ate < '2026-07-31' ? ate : '2026-07-31');
-  const ritmoJun = duJun ? vj.qtde / duJun : 0;
-  const ritmoJul = duJul ? vjl.qtde / duJul : 0;
-  kpis.var_junho_julho_ritmo_pct = ritmoJun ? +((ritmoJul - ritmoJun) / ritmoJun).toFixed(4) : 0;
+  // campos "vendas_<nomedomês>" continuam existindo (compatibilidade com o resto do código/template),
+  // só que agora com o NOME certo pra cada posição da janela — não mais fixos em maio/junho/julho/agosto.
+  janelaMeta.forEach((jm, i) => { kpis[jm.campo] = vendasPorMes[i]; });
 
   // ---- agregação por unidade / representante ----
   function agrupar(keyFn, extraUnidade) {
     const o = {};
     for (const x of regs) {
       const k = keyFn(x);
-      const g = o[k] || (o[k] = { nome: k, vendas_maio: 0, vendas_junho: 0, vendas_julho: 0, vendas_agosto: 0,
-        _cliMaio: new Set(), _cliJunho: new Set(), _cliJulho: new Set(), _cliAgosto: new Set(),
-        ativos: 0, valor_ativos: 0, inadimplentes: 0, valor_inadimplentes: 0, cancelados: 0, inativos: 0, pendentes: 0,
-        total: 0, valor_total: 0, _unidade: x.unidade });
-      if (ehVendaMes(x, '2026-05')) { g.vendas_maio++; g._cliMaio.add(x.cpfAssociado); }
-      if (ehVendaMes(x, '2026-06')) { g.vendas_junho++; g._cliJunho.add(x.cpfAssociado); }
-      if (ehVendaMes(x, '2026-07')) { g.vendas_julho++; g._cliJulho.add(x.cpfAssociado); }
-      if (ehVendaMes(x, '2026-08')) { g.vendas_agosto++; g._cliAgosto.add(x.cpfAssociado); }
+      if (!o[k]) {
+        const g = { nome: k, ativos: 0, valor_ativos: 0, inadimplentes: 0, valor_inadimplentes: 0,
+          cancelados: 0, inativos: 0, pendentes: 0, total: 0, valor_total: 0, _unidade: x.unidade, _cli: {} };
+        janelaMeta.forEach(jm => { g[jm.campo] = 0; g._cli[jm.campo] = new Set(); });
+        o[k] = g;
+      }
+      const g = o[k];
+      janelaMeta.forEach(jm => { if (ehVendaMes(x, jm.iso)) { g[jm.campo]++; g._cli[jm.campo].add(x.cpfAssociado); } });
       if (x.situacao === 'Ativo') { g.ativos++; g.valor_ativos += x.valor; }
       if (x.situacao === 'Inadimplente') { g.inadimplentes++; g.valor_inadimplentes += x.valor; }
       if (x.situacao === 'Cancelado') g.cancelados++;
@@ -335,8 +347,8 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
       if (x.situacao === 'Pendente') g.pendentes++;
     }
     return Object.values(o).map(g => {
-      g.vendas_maio_cliente = g._cliMaio.size; g.vendas_junho_cliente = g._cliJunho.size; g.vendas_julho_cliente = g._cliJulho.size; g.vendas_agosto_cliente = g._cliAgosto.size;
-      delete g._cliMaio; delete g._cliJunho; delete g._cliJulho; delete g._cliAgosto;
+      janelaMeta.forEach(jm => { g[jm.campo + '_cliente'] = g._cli[jm.campo].size; });
+      delete g._cli;
       g.total = g.ativos + g.inadimplentes;
       g.valor_total = +(g.valor_ativos + g.valor_inadimplentes).toFixed(2);
       g.valor_ativos = +g.valor_ativos.toFixed(2);
@@ -368,7 +380,9 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
   const daily = { dates, qtde, is_weekday };
 
   return {
-    data: { kpis, unidade, representante, daily, meta: { gerado_em: '__HOJE__', periodo: 'Maio a Agosto de 2026 (até ' + ate.split('-').reverse().join('/') + ')' } },
+    data: { kpis, unidade, representante, daily, meta: { gerado_em: '__HOJE__',
+      periodo: titleCase(janelaMeta[0].nome) + ' a ' + titleCase(janelaMeta[janelaMeta.length - 1].nome)
+        + ' de ' + janelaMeta[janelaMeta.length - 1].iso.slice(0, 4) + ' (até ' + ate.split('-').reverse().join('/') + ')' } },
     placaParaRepresentante,
     placaParaAdesao,
     diagnostico: { registros: regs.length, consultoresSemUnidade: [...dropConsultores] }

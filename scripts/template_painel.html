@@ -299,8 +299,8 @@ const DATA = JSON.parse(document.getElementById('dashboard-data').textContent);
 const K = DATA.kpis;
 const CONV = JSON.parse(document.getElementById('conversao-data').textContent);
 ['unidade','representante'].forEach(t => (DATA[t]||[]).forEach(r => {
-  r.vendas_total_periodo = (r.vendas_maio||0) + (r.vendas_junho||0) + (r.vendas_julho||0) + (r.vendas_agosto||0);
-  r.vendas_total_periodo_cliente = (r.vendas_maio_cliente||0) + (r.vendas_junho_cliente||0) + (r.vendas_julho_cliente||0) + (r.vendas_agosto_cliente||0);
+  r.vendas_total_periodo = K.janela.reduce((s,jm) => s + (r[jm.campo]||0), 0);
+  r.vendas_total_periodo_cliente = K.janela.reduce((s,jm) => s + (r[jm.campo+'_cliente']||0), 0);
 }));
 
 document.getElementById('gen-date').textContent = DATA.meta.gerado_em;
@@ -372,13 +372,15 @@ function semaforo(variacao){
 let kpiHtml = '';
 kpiHtml += mainCard('Carteira em Vigor', K.carteira_qtde, null, K.carteira_ticket_medio, '',
   num(K.ativos_qtde)+' Ativos + '+num(K.inadimplentes_qtde)+' Inadimplentes');
-[['2026-05','Maio',K.vendas_maio,null],
- ['2026-06','Junho',K.vendas_junho,K.var_maio_junho_pct],
- ['2026-07','Julho',K.vendas_julho,K.var_junho_julho_pct],
- ['2026-08','Agosto',K.vendas_agosto,K.var_julho_agosto_pct]].forEach(([mesIso,nome,vObj,variacao])=>{
+// K.janela = [{iso,nome,campo}] mais antigo -> mês atual (sempre 4, janela móvel — ver transformador_base.js).
+// K.variacoes_janela[i] = variação de janela[i+1] vs janela[i] (3 valores; janela[0] não tem "anterior").
+K.janela.forEach((jm, idx) => {
+  const mesIso = jm.iso, nome = jm.nome.charAt(0).toUpperCase()+jm.nome.slice(1);
+  const vObj = K[jm.campo];
+  const variacao = idx===0 ? null : K.variacoes_janela[idx-1];
   const ehAtual = mesIso===mesAtualKpi;
   const sinal = ehAtual ? semaforo(K.variacao_mes_atual) : null;
-  const cls = sinal ? 'sinal-'+sinal : (mesIso<='2026-06'?'blue':'amber');
+  const cls = sinal ? 'sinal-'+sinal : (idx<2?'blue':'amber');
   kpiHtml += mainCard(rotuloMes(mesIso,nome), numeroPrincipal(mesIso,vObj), vObj.valor, vObj.ticket_medio,
     cls, null, variacao, comparativoMesFechado(mesIso,vObj), sinal);
 });
@@ -475,14 +477,13 @@ let sortDir = -1;
 
 let vendasDetalheMensal = false;
 function getVendasBase(){
+  const capitaliza = s => s.charAt(0).toUpperCase()+s.slice(1);
+  const siglaMes = s => capitaliza(s).slice(0,3); // "Maio"->"Mai", "Setembro"->"Set"
   return [
-    ...(vendasDetalheMensal ? [
-      {key:'vendas_maio', keyCliente:'vendas_maio_cliente', group:'Vendas Maio'},
-      {key:'vendas_junho', keyCliente:'vendas_junho_cliente', group:'Vendas Junho'},
-      {key:'vendas_julho', keyCliente:'vendas_julho_cliente', group:'Vendas Julho'},
-      {key:'vendas_agosto', keyCliente:'vendas_agosto_cliente', group:'Vendas Agosto'},
-    ] : [
-      {key:'vendas_total_periodo', keyCliente:'vendas_total_periodo_cliente', group:'Vendas Mai+Jun+Jul+Ago'},
+    ...(vendasDetalheMensal ?
+      K.janela.map(jm => ({ key:jm.campo, keyCliente:jm.campo+'_cliente', group:'Vendas '+capitaliza(jm.nome) }))
+    : [
+      {key:'vendas_total_periodo', keyCliente:'vendas_total_periodo_cliente', group:'Vendas '+K.janela.map(jm=>siglaMes(jm.nome)).join('+')},
     ]),
     {key:'ativos', label:'Ativos', fmt:num, rowspan:true},
     {key:'inadimplentes', label:'Inadimplentes', fmt:num, rowspan:true},
@@ -578,18 +579,21 @@ renderHead();
 renderBody();
 
 /* ---------------- COTAÇÕES / CONVERSÃO POR CONSULTOR ---------------- */
-const MLBL = {'2026-05':'Maio','2026-06':'Junho','2026-07':'Julho','2026-08':'Agosto'};
+// nome do mês a partir do ISO "AAAA-MM" — tabela fixa dos 12 meses (não depende de janela nenhuma,
+// então nunca precisa mexer aqui de novo). Susbtitui o antigo MLBL fixo em maio-agosto.
+const NOMES_MES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+function MLBL(mIso){ return NOMES_MES_PT[+mIso.slice(5,7) - 1]; }
 let convSortKey = 'total_cotado', convSortDir = -1;
 // Placa e Cliente viram colunas de verdade, agrupadas por um cabeçalho comum (a palavra aparece só no título, 1x)
 function getConvLeaves(){
   const leaves = [{key:'nome', label:'Consultor', rowspan:true}, {key:'unidade', label:'Unidade', rowspan:true}];
   CONV.meses.forEach(m => {
-    leaves.push({key:'cot_'+m, label:'Placa', group:MLBL[m]+' · Cotado', fmt:num});
-    leaves.push({key:'cot_cliente_'+m, label:'Cliente', group:MLBL[m]+' · Cotado', fmt:num});
-    leaves.push({key:'fech_'+m, label:'Placa', group:MLBL[m]+' · Fechado', fmt:num});
-    leaves.push({key:'fech_cliente_'+m, label:'Cliente', group:MLBL[m]+' · Fechado', fmt:num});
-    leaves.push({key:'conv_'+m, label:'Placa', group:MLBL[m]+' · % Conv.', fmt:pctConv, badgeConv:true});
-    leaves.push({key:'conv_cliente_'+m, label:'Cliente', group:MLBL[m]+' · % Conv.', fmt:pctConv, badgeConv:true});
+    leaves.push({key:'cot_'+m, label:'Placa', group:MLBL(m)+' · Cotado', fmt:num});
+    leaves.push({key:'cot_cliente_'+m, label:'Cliente', group:MLBL(m)+' · Cotado', fmt:num});
+    leaves.push({key:'fech_'+m, label:'Placa', group:MLBL(m)+' · Fechado', fmt:num});
+    leaves.push({key:'fech_cliente_'+m, label:'Cliente', group:MLBL(m)+' · Fechado', fmt:num});
+    leaves.push({key:'conv_'+m, label:'Placa', group:MLBL(m)+' · % Conv.', fmt:pctConv, badgeConv:true});
+    leaves.push({key:'conv_cliente_'+m, label:'Cliente', group:MLBL(m)+' · % Conv.', fmt:pctConv, badgeConv:true});
   });
   leaves.push({key:'total_cotado', label:'Placa', group:'Total Cotado', fmt:num});
   leaves.push({key:'total_cotado_cliente', label:'Cliente', group:'Total Cotado', fmt:num});

@@ -20,13 +20,14 @@
  * Cruzamento cotação->fechamento por PLACA (não por nome) — garante que a
  * conversão nunca passe de 100%.
  *
- * Uso: build(cotacoesXlsx, baseXlsx, ateISO, representantesBase) -> { consultores, totais, meses }
+ * Uso: build(cotacoesXlsx, baseXlsx, ateISO, representantesBase, janela) -> { consultores, totais, meses }
+ *   janela: [{iso,nome,campo}] mais antigo -> atual, vindo de res.data.kpis.janela (transformador_base.js)
+ *   — os campos "vendas_<nome>" lidos de representantesBase têm que ser exatamente os mesmos nomes que
+ *   o transformador_base gerou pra esta mesma janela de 4 meses (janela móvel, não mais fixa mai-ago).
  */
 const XLSX = require('xlsx');
 
 const S = { codigo: 0, associado: 1, placa: 3, data: 4, franquia: 6, representante: 7, status: 8 };
-const MESES = ['2026-05', '2026-06', '2026-07', '2026-08'];
-const MES_NOME = { '2026-05': 'maio', '2026-06': 'junho', '2026-07': 'julho', '2026-08': 'agosto' };
 
 // índices das colunas do BASE resolvidos por nome (não por posição fixa) — o Siprov já
 // mudou a ordem/qtde de colunas entre exportações (ver transformador_base.js).
@@ -61,7 +62,9 @@ function algumaPlacaFechada(celula, fechadas) {
   return placas.some(p => fechadas.has(p));
 }
 
-module.exports = function build(cotacoesXlsx, baseXlsx, ateISO, representantesBase) {
+module.exports = function build(cotacoesXlsx, baseXlsx, ateISO, representantesBase, janela) {
+  const MESES = janela.map(j => j.iso);
+  const MES_NOME = Object.fromEntries(janela.map(j => [j.iso, j.nome]));
   const ate = ateISO || '2026-12-31';
   const diaCorte = new Date(ate + 'T12:00:00').getDate();
   function limiteMes(mes) {

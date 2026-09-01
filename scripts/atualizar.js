@@ -21,8 +21,14 @@ const buildVendas = require('./transformador_vendas');
 const lerSubscricao = require('./leitor_subscricao');
 const lerDescontoEspecial = require('./leitor_desconto_especial');
 
-const MESES = ['2026-05', '2026-06', '2026-07', '2026-08'];
-const MES_NOME = { '2026-05': 'maio', '2026-06': 'junho', '2026-07': 'julho', '2026-08': 'agosto' };
+// Janela móvel de 4 meses (não mais fixa mai-jun-jul-ago) — pedido da Eduarda em 01/09/2026 pra não
+// quebrar a cada virada de mês. Preenchidos de verdade logo depois de `buildBase()`, a partir de
+// res.data.kpis.janela (mesma fonte que gerou os campos vendas_<mês> em representante/unidade/kpis —
+// PRECISA ser a mesma janela, senão os nomes de campo não batem). Os `let` aqui são só placeholder;
+// funções declaradas antes de `res` existir (ex. aplicarVendasDaSubscricao) fecham sobre a variável, não
+// sobre o valor, então funcionam desde que só sejam CHAMADAS depois da reatribuição abaixo.
+let MESES = [];
+let MES_NOME = {};
 
 // casamento de nome truncado do PPM (30 chars) x nome completo da BASE — mesma heurística usada em
 // transformador_vendas.js/transformador_conversao.js, reaproveitada aqui para os arquivos avulsos de
@@ -293,6 +299,8 @@ try {
   }
 
   const res = buildBase(base.full, ate, { placa2rep, placa2unidade, placa2repCot, placa2unidadeCot, cpfAssoc2unidade });
+  MESES = res.data.kpis.janela.map(j => j.iso);
+  MES_NOME = Object.fromEntries(res.data.kpis.janela.map(j => [j.iso, j.nome]));
   // Gráfico "Ritmo de Vendas — Diário" = Controle de Subscrição V2, contando PLACAS por Data
   // Transmissão/Cálculo. Decisão final da Eduarda em 28/08 (pediu 3x de formas diferentes até eu
   // entender): É ESSA a fonte — e "placas", não "propostas" (uma proposta pode cobrir mais de 1 placa;
@@ -337,13 +345,15 @@ try {
   let avisoConversao = '';
   let conversao = { consultores: [], totais: { total_cotado: 0, total_fechado: 0, conversao: 0,
     total_cotado_cliente: 0, total_fechado_cliente: 0, conversao_cliente: 0,
-    por_mes: {}, consultores: 0, sem_cotacao_registrada: 0 }, meses: ['2026-05', '2026-06', '2026-07'] };
+    por_mes: {}, consultores: 0, sem_cotacao_registrada: 0 }, meses: MESES.slice(0, 3) };
   let conversaoOk = false;
   if (cotacoes) {
     const maxCot = maxDataCotacoes(cotacoes.full);
     const ateCotacoes = maxCot && maxCot < ate ? maxCot : ate;
     if (ateCotacoes !== ate) log('cotações mais antigas que a BASE (até ' + maxCot + ') — usando essa data como corte, não "hoje".');
-    const calculada = buildConversao(cotacoes.full, base.full, ateCotacoes, res.data.representante);
+    // janela = a mesma de res.data.kpis (baseada em "ate", não em "ateCotacoes") — é ela que definiu os
+    // nomes de campo vendas_<mês> em res.data.representante, que é de onde FECHADO é lido logo abaixo.
+    const calculada = buildConversao(cotacoes.full, base.full, ateCotacoes, res.data.representante, res.data.kpis.janela);
     if (conversaoCorrompida(calculada)) {
       log('AVISO: conversão calculada de ' + cotacoes.f + ' saiu com 100% em tudo (cotado===fechado) — sinal de'
         + ' cruzamento quebrado (leiaute do export mudou?). Descartando e caindo no fallback.');
