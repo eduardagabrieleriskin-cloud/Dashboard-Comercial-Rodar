@@ -305,7 +305,7 @@ const CONV = JSON.parse(document.getElementById('conversao-data').textContent);
 
 document.getElementById('gen-date').textContent = DATA.meta.gerado_em;
 function fmtDateBR(iso){ const [y,m,d]=iso.split('-'); return d+'/'+m+'/'+y; }
-document.getElementById('data-ultima').textContent = fmtDateBR(K.data_ultima_venda);
+document.getElementById('data-ultima').textContent = DATA.meta.atualizado_em || fmtDateBR(K.data_ultima_venda);
 (function(){
   const NOMES_MES = {'01':'Janeiro','02':'Fevereiro','03':'Março','04':'Abril','05':'Maio','06':'Junho',
     '07':'Julho','08':'Agosto','09':'Setembro','10':'Outubro','11':'Novembro','12':'Dezembro'};

@@ -318,7 +318,12 @@ try {
   if (res.diagnostico.consultoresSemUnidade.length)
     log('AVISO: consultores sem unidade no mapa (caem em "(Sem Unidade)", NÃO são descartados — atualizar mapa_unidades.json): '
       + res.diagnostico.consultoresSemUnidade.join(', '));
-  res.data.meta.gerado_em = fmtBR(new Date());
+  // data + hora da atualização (= hora em que a Talita pediu, já que roda na hora pelo chat) — pedido de
+  // 25/09/2026: o cabeçalho mostra "adesões até <data> às <hora>" em vez de só a data da última adesão.
+  const agora = new Date();
+  const horaBR = String(agora.getHours()).padStart(2, '0') + ':' + String(agora.getMinutes()).padStart(2, '0');
+  res.data.meta.gerado_em = fmtBR(agora) + ' às ' + horaBR;
+  res.data.meta.atualizado_em = res.data.meta.gerado_em;
 
   // Cards do topo e Detalhamento: vendas contadas direto do BASE (BENEFÍCIO - DATA DE ADESÃO), não
   // cruzando com Subscrição — bate com a contagem manual no BASE. (O gráfico diário JÁ foi recalculado
