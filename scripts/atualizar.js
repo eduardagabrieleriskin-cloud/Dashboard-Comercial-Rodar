@@ -203,7 +203,9 @@ function maxDataCotacoes(xlsxPath) {
 }
 
 const REPO = path.resolve(__dirname, '..');
-const DOWNLOADS = process.env.USERPROFILE ? path.join(process.env.USERPROFILE, 'Downloads') : 'C:/Users/eduar/Downloads';
+// PAINEL_DOWNLOADS: pasta alternativa com SÓ os relatórios escolhidos (ex.: "use apenas estes 2 arquivos"),
+// pra não pegar sobras antigas de Downloads (Relatório de Subscrição, desconto especial...).
+const DOWNLOADS = process.env.PAINEL_DOWNLOADS ? process.env.PAINEL_DOWNLOADS : process.env.USERPROFILE ? path.join(process.env.USERPROFILE, 'Downloads') : 'C:/Users/eduar/Downloads';
 const OUT = path.join(REPO, 'index.html');
 const TEMPLATE = path.join(__dirname, 'template_painel.html');
 const MARKER = path.join(__dirname, '.ultimo_base.txt');
