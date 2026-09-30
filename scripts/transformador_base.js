@@ -208,6 +208,10 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
     // registro NÃO é descartado (descartar fazia o total da carteira ficar abaixo do real — bug de 10/08).
     const unidadeRaw = MAPA[consultorRaw.toUpperCase()]                                   // 1. consultor no mapa
       || MAPA[repRaw.toUpperCase()]                                                       // 2. agência no mapa
+      // 2b. PESSOA achada pela placa (Subscrição/Cotação) que está no mapa — 30/09/2026: placa QWT9B73 sem
+      // consultor/agência na BASE ia pra franquia do PPM ("Água Verde") em vez da unidade do Luiz Fernando Orth
+      // (Alto Boqueirão), e por ser a 1ª linha dele puxava o representante inteiro pra unidade errada.
+      || (quemVendeu && MAPA[quemVendeu.toUpperCase()])
       || (placa && placa2unidade[placa])                                                  // 3. franquia da placa (subscrição)
       || (placa && placa2unidadeCot[placa])                                               // 4. franquia da placa (cotação)
       || (cpfAssoc2unidade && cpfAssoc2unidade[(r[C.cpfAssociado] || '').toString().replace(/\D/g, '')]) // 5. franqueado do associado
