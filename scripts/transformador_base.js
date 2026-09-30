@@ -22,6 +22,27 @@ const ALIAS_CONSULTOR = {
   'CARLOS EDUARDO CORDEIRO N': 'CARLOS EDUARDO CORDEIRO', // cadastro oficial: 1 entrada, CPF 040.609.489-69
 };
 
+// Troca de unidade COM DATA: a partir de `desde` (data de adesão, inclusive) o consultor conta para a nova
+// unidade; adesões anteriores seguem na unidade do mapa_unidades.json. Na tabela de representantes ele
+// aparece na unidade vigente (a mais recente). Chave em MAIÚSCULAS, lista em ordem crescente de `desde`.
+const MAPA_VIGENCIA = {
+  // 30/09/2026 (Talita): Izidoro passou de Ponta Grossa para Alto Boqueirão a partir de 28/08/2026.
+  'IZIDORO SVARCZ': [{ desde: '2026-08-28', unidade: 'Kcor Unidade Curitiba - Alto Boqueirão' }],
+};
+function unidadeDoMapa(nomeUpper, adesaoISO) {
+  const trocas = MAPA_VIGENCIA[nomeUpper];
+  if (trocas) {
+    // sem data de adesão: vale a unidade vigente (última troca)
+    const vale = trocas.filter(t => !adesaoISO || adesaoISO >= t.desde).pop();
+    if (vale) return vale.unidade;
+  }
+  return MAPA[nomeUpper];
+}
+function unidadeVigente(nomeUpper) {
+  const trocas = MAPA_VIGENCIA[nomeUpper];
+  return trocas ? trocas[trocas.length - 1].unidade : null;
+}
+
 // nomes das colunas no cabeçalho do BASE (linha 2 da planilha) — resolvidos para índice
 // em tempo de execução, porque o Siprov já mudou a ordem/qtde de colunas entre exportações
 // (ex.: layout de 04/08 tinha índices diferentes do layout de 10/08). Buscar por nome evita
@@ -206,12 +227,13 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
       || titleCase(repRaw);
     // unidade em camadas, da mais confiável para a mais ampla; sem nenhuma => "(Sem Unidade)", mas o
     // registro NÃO é descartado (descartar fazia o total da carteira ficar abaixo do real — bug de 10/08).
-    const unidadeRaw = MAPA[consultorRaw.toUpperCase()]                                   // 1. consultor no mapa
+    const adesao = parseISO(r[C.adesao], fmtAdesao);
+    const unidadeRaw = unidadeDoMapa(consultorRaw.toUpperCase(), adesao)                  // 1. consultor no mapa (com vigência)
       || MAPA[repRaw.toUpperCase()]                                                       // 2. agência no mapa
       // 2b. PESSOA achada pela placa (Subscrição/Cotação) que está no mapa — 30/09/2026: placa QWT9B73 sem
       // consultor/agência na BASE ia pra franquia do PPM ("Água Verde") em vez da unidade do Luiz Fernando Orth
       // (Alto Boqueirão), e por ser a 1ª linha dele puxava o representante inteiro pra unidade errada.
-      || (quemVendeu && MAPA[quemVendeu.toUpperCase()])
+      || (quemVendeu && unidadeDoMapa(quemVendeu.toUpperCase(), adesao))
       || (placa && placa2unidade[placa])                                                  // 3. franquia da placa (subscrição)
       || (placa && placa2unidadeCot[placa])                                               // 4. franquia da placa (cotação)
       || (cpfAssoc2unidade && cpfAssoc2unidade[(r[C.cpfAssociado] || '').toString().replace(/\D/g, '')]) // 5. franqueado do associado
@@ -221,7 +243,7 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
     regs.push({
       situacao, consultor: quemVendeu || '(Sem Representante)', unidade, placa,
       cpfAssociado: (r[C.cpfAssociado] || '').toString().trim(),
-      adesao: parseISO(r[C.adesao], fmtAdesao),
+      adesao,
       valor: toNum(r[C.valorAjust]),
     });
   }
@@ -360,7 +382,10 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
       const uni = g.total + g.cancelados + g.inativos + g.pendentes;
       g.pct_inadimplencia = uni ? +(g.inadimplentes / uni).toFixed(4) : 0;
       g.pct_perda = uni ? +((g.cancelados + g.inativos) / uni).toFixed(4) : 0;
-      if (extraUnidade) g.unidade = g._unidade;
+      if (extraUnidade) {
+        const vig = unidadeVigente(g.nome.toUpperCase());
+        g.unidade = vig ? canonicalizeUnidade(vig) : g._unidade;
+      }
       delete g._unidade;
       return g;
     });
