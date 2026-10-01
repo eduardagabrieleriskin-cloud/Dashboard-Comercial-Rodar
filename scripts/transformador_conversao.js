@@ -120,7 +120,10 @@ module.exports = function build(cotacoesXlsx, baseXlsx, ateISO, representantesBa
     const d = iso(r[S.data]);
     if (!d) continue;
     const mes = d.slice(0, 7);
-    if (!MESES.includes(mes) || d > limiteMes(mes)) continue;
+    // Corte só em "ate" (mês atual parcial, meses fechados INTEIROS) — mesma régua do FECHADO, que vem de
+    // vendas_<mês> (mês cheio). Antes cortava TODO mês no dia de hoje (limiteMes): em 01/10/2026 julho/agosto/
+    // setembro entraram só com as cotações do dia 1 contra o mês inteiro de fechadas -> conversão de 94,6%.
+    if (!MESES.includes(mes) || d > ate) continue;
     const nomeBaseAlvo = destino[(r[S.representante] || '').trim()];
     if (!nomeBaseAlvo) continue;
     const a = acc[nomeBaseAlvo];
