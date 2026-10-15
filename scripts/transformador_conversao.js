@@ -60,9 +60,15 @@ function scoreNomes(cotName, baseName) {
   if (nb.length >= 28 && nc.startsWith(nb)) return 900;
   const tc = tok(cotName), tb = tok(baseName);
   let s = commonPrefix(tc, tb);
-  if (s < 2 && tc.length >= 2 && tb.length >= 2 && tc[0] === tb[0] && tc[tc.length - 1] === tb[tb.length - 1]) s = 2;
-  return s;
+  // 1º+último token iguais — mas NÃO quando o último é termo genérico de empresa: "S H LONGUINI SERVICOS LTDA"
+  // casava com "S Assis Leite Ltda" (15/10/2026).
+  if (s < 2 && tc.length >= 2 && tb.length >= 2 && tc[0] === tb[0] && tc[tc.length - 1] === tb[tb.length - 1]
+    && !TOKENS_GENERICOS.has(tc[tc.length - 1])) s = 2;
+  // Só o 1º nome em comum NÃO basta (15/10/2026): "WAGNER MALVEIRO SILVA" ia para Wagner de Oliveira Neto,
+  // "RODRIGO BRAMBILA PIRES" para Rodrigo Vieira da Silva etc. — 82 cotações de outras pessoas na janela.
+  return s >= 2 ? s : 0;
 }
+const TOKENS_GENERICOS = new Set(['LTDA', 'ME', 'EPP', 'EIRELI', 'SA', 'S', 'A', 'SERVICOS', 'CORRETORA', 'SEGUROS']);
 function iso(s) { if (!s) return null; const m = String(s).match(/(\d{2})\/(\d{2})\/(\d{4})/); return m ? m[3] + '-' + m[2] + '-' + m[1] : null; }
 // "Conjunto" pode ter mais de uma placa numa célula só (ex: "NED5C33 JBK1F44") — considera fechada se QUALQUER placa da cotação estiver ativa/inadimplente
 function algumaPlacaFechada(celula, fechadas) {
