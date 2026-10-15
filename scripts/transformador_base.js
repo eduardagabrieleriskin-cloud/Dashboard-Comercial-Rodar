@@ -88,9 +88,18 @@ function titleCase(s) {
   return (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ')
     .split(' ').map(w => ['de','da','do','e','dos','das'].includes(w) ? w : (w.charAt(0).toUpperCase() + w.slice(1))).join(' ');
 }
+// Unidades que devem ser SOMADAS em outra (chave sem código, sem acento, maiúscula). Vale para qualquer
+// origem do nome (mapa, franquia do PPM, Relatório de Subscrição).
+// 15/10/2026 (Talita): tudo que for Kcor Light Maringá - Jardim Paraíso conta em Kcor Maringá.
+const UNIDADE_ALIAS = {
+  'KCOR LIGHT MARINGA - JARDIM PARAISO': '237 - Kcor Maringá',
+};
+const semAcentoUpper = s => (s || '').toString().normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
 function canonicalizeUnidade(s) {
   // remove o código numérico na frente ("689 - Kcor Londrina" -> "Kcor Londrina") e padroniza capitalização
-  const semCodigo = (s || '').toString().trim().replace(/^\d+\s*-\s*/, '');
+  let semCodigo = (s || '').toString().trim().replace(/^\d+\s*-\s*/, '');
+  const alias = UNIDADE_ALIAS[semAcentoUpper(semCodigo)];
+  if (alias) semCodigo = alias.replace(/^\d+\s*-\s*/, '');
   return titleCase(semCodigo);
 }
 function ehTeste(consultor, loja) {
