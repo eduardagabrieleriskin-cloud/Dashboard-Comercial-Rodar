@@ -29,6 +29,14 @@ const XLSX = require('xlsx');
 
 const S = { codigo: 0, associado: 1, placa: 3, data: 4, franquia: 6, representante: 7, status: 8 };
 
+// Nome do "Representante" no PPM (MAIÚSCULAS) -> consultor da BASE, quando o PPM registra a cotação no nome
+// da agência/PJ e o casamento por nome não acha a pessoa. 15/10/2026 (Talita): as cotações do Sandro vinham
+// como "S H LONGUINI SERVICOS LTDA" e eram descartadas — o painel mostrava 1 cotada em out/26 (só a fechada)
+// em vez de 3.
+const ALIAS_REPRESENTANTE_PPM = {
+  'S H LONGUINI SERVICOS LTDA': 'Sandro Heitor Longuini',
+};
+
 // índices das colunas do BASE resolvidos por nome (não por posição fixa) — o Siprov já
 // mudou a ordem/qtde de colunas entre exportações (ver transformador_base.js).
 function resolverColunasBase(headerRow) {
@@ -101,6 +109,8 @@ module.exports = function build(cotacoesXlsx, baseXlsx, ateISO, representantesBa
   // para cada nome bruto do PPM, acha o melhor consultor da BASE (evita atribuição ambígua)
   const destino = {};
   for (const cn of rawNomesCot) {
+    const alias = ALIAS_REPRESENTANTE_PPM[cn.toUpperCase()];
+    if (alias) { const alvo = nomesBase.find(bn => norm(bn) === norm(alias)); if (alvo) { destino[cn] = alvo; continue; } }
     const scored = nomesBase.map(bn => ({ bn, s: scoreNomes(cn, bn) })).filter(x => x.s > 0).sort((a, b) => b.s - a.s);
     if (!scored.length) continue;
     const top = scored[0].s;
@@ -199,5 +209,13 @@ module.exports = function build(cotacoesXlsx, baseXlsx, ateISO, representantesBa
     sem_cotacao_registrada: consultores.filter(c => c.total_cotado === 0).length
   };
 
-  return { consultores, totais, meses: MESES };
+  // diagnóstico: nomes do PPM com cotação na janela que não casaram com ninguém da BASE (ficam fora da conversão)
+  const semDestino = {};
+  for (const r of cot) {
+    const cn = (r[S.representante] || '').trim(); const d = iso(r[S.data]);
+    if (!cn || destino[cn] || !d || !MESES.includes(d.slice(0, 7)) || d > ate) continue;
+    semDestino[cn] = (semDestino[cn] || 0) + 1;
+  }
+
+  return { consultores, totais, meses: MESES, semDestino };
 };

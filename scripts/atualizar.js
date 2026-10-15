@@ -408,6 +408,9 @@ try {
     // janela = a mesma de res.data.kpis (baseada em "ate", não em "ateCotacoes") — é ela que definiu os
     // nomes de campo vendas_<mês> em res.data.representante, que é de onde FECHADO é lido logo abaixo.
     const calculada = buildConversao(cotacoes.full, base.full, ateCotacoes, res.data.representante, res.data.kpis.janela);
+    const semDestino = calculada.semDestino || {}; delete calculada.semDestino;
+    if (Object.keys(semDestino).length) log('AVISO: cotações do PPM sem consultor correspondente na BASE (fora da conversão — usar ALIAS_REPRESENTANTE_PPM se for agência de alguém): '
+      + Object.entries(semDestino).sort((a, b) => b[1] - a[1]).map(([n, q]) => n + ' (' + q + ')').join(', '));
     if (conversaoCorrompida(calculada)) {
       log('AVISO: conversão calculada de ' + cotacoes.f + ' saiu com 100% em tudo (cotado===fechado) — sinal de'
         + ' cruzamento quebrado (leiaute do export mudou?). Descartando e caindo no fallback.');
