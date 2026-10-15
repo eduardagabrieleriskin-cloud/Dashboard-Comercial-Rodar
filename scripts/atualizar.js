@@ -219,6 +219,49 @@ function fmtBR(dt) { return String(dt.getDate()).padStart(2, '0') + '/' + String
 // Data local, não toISOString(): em UTC, à noite no Brasil já seria o dia seguinte.
 function isoHoje() { const d = new Date(); const p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
 
+// ---- Reativações (Talita, 15/10/2026: reativação no mês = venda nova) ----
+// A BASE não traz data de reativação, então o histórico fica num livro-razão LOCAL (.local/, fora do git — tem
+// ID de benefício por placa): a cada BASE nova, compara a situação de cada ID com o último export visto;
+// Cancelado/Inativo -> Ativo/Inadimplente = reativação, datada pelo dia do export em que apareceu.
+const ESTADO_DIR = path.join(REPO, '.local');
+const STATUS_PATH = path.join(ESTADO_DIR, 'ultimo_status.json');
+const REATIV_PATH = path.join(ESTADO_DIR, 'reativacoes.json');
+const SIT_FORA = new Set(['Cancelado', 'Inativo']), SIT_DENTRO = new Set(['Ativo', 'Inadimplente']);
+function dataLocal(ms) { const d = new Date(ms); const p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
+function lerJsonLocal(p, padrao) { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch (e) { return padrao; } }
+function statusDaBase(xlsxPath) {
+  const wb = XLSX.readFile(xlsxPath);
+  const L = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false });
+  const hi = L[0].some(h => h && /BENEF/.test(h)) ? 0 : 1;
+  const H = L[hi].map(h => (h || '').toString().trim().toUpperCase());
+  const iId = H.indexOf('BENEFÍCIO - ID DO BENEFÍCIO'), iS = H.indexOf('BENEFÍCIO - SITUAÇÃO ATUAL');
+  if (iId < 0 || iS < 0) return null;
+  const st = {};
+  for (const r of L.slice(hi + 1)) { const id = (r[iId] || '').toString().trim(); if (id) st[id] = (r[iS] || '').toString().trim().replace(/^Endosso /, ''); }
+  return st;
+}
+function atualizarReativacoes(base) {
+  const livro = lerJsonLocal(REATIV_PATH, {});
+  const ant = lerJsonLocal(STATUS_PATH, null);
+  const cur = statusDaBase(base.full);
+  if (!cur) { log('AVISO: BASE sem coluna de ID do benefício — reativações não atualizadas.'); return livro; }
+  const nCur = Object.keys(cur).length;
+  if (ant && ant.meta && base.m <= ant.meta.mtime) { log('reativações: BASE não é mais nova que a última vista (' + ant.meta.arquivo + ') — livro-razão mantido.'); return livro; }
+  if (ant && ant.meta && nCur < 0.9 * ant.meta.linhas) { log('AVISO: BASE com ' + nCur + ' benefícios contra ' + ant.meta.linhas + ' da anterior (export filtrado?) — reativações não atualizadas.'); return livro; }
+  const dia = dataLocal(base.m); const novas = [];
+  if (ant) for (const [id, s] of Object.entries(cur)) {
+    if (SIT_FORA.has(ant.status[id]) && SIT_DENTRO.has(s)) {
+      const lista = livro[id] || (livro[id] = []);
+      if (!lista.includes(dia)) { lista.push(dia); novas.push(id); }
+    }
+  }
+  fs.mkdirSync(ESTADO_DIR, { recursive: true });
+  fs.writeFileSync(REATIV_PATH, JSON.stringify(livro, null, 1));
+  fs.writeFileSync(STATUS_PATH, JSON.stringify({ meta: { arquivo: base.f, mtime: base.m, linhas: nCur }, status: cur }));
+  log('reativações: ' + novas.length + ' nova(s) neste export' + (novas.length ? ' (IDs ' + novas.join(', ') + ')' : '') + ' | total no livro-razão: ' + Object.values(livro).reduce((s, l) => s + l.length, 0));
+  return livro;
+}
+
 function acharMaisRecente(regex) {
   const arqs = fs.readdirSync(DOWNLOADS)
     .filter(f => regex.test(f))
@@ -302,7 +345,9 @@ try {
     log('placas mapeadas nas Cotações: ' + Object.keys(placa2repCot).length);
   }
 
-  const res = buildBase(base.full, ate, { placa2rep, placa2unidade, placa2repCot, placa2unidadeCot, cpfAssoc2unidade });
+  const reativacoes = atualizarReativacoes(base);
+  const res = buildBase(base.full, ate, { placa2rep, placa2unidade, placa2repCot, placa2unidadeCot, cpfAssoc2unidade, reativacoes });
+  if (res.diagnostico.reativacoesContadas) log('reativações contadas como venda: ' + res.diagnostico.reativacoesContadas);
   MESES = res.data.kpis.janela.map(j => j.iso);
   MES_NOME = Object.fromEntries(res.data.kpis.janela.map(j => [j.iso, j.nome]));
   // Gráfico "Ritmo de Vendas — Diário" = Controle de Subscrição V2, contando PLACAS por Data

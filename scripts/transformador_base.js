@@ -148,7 +148,7 @@ function toNum(v) {
 // que monta o livro-razão por placa usado para validar esta cascata.
 module.exports = function build(xlsxPath, ateISO, sinais) {
   const { placa2rep = {}, placa2unidade = {}, placa2repCot = {}, placa2unidadeCot = {},
-    cpfAssoc2unidade = null } = sinais || {};
+    cpfAssoc2unidade = null, reativacoes = {} } = sinais || {};
   const wb = XLSX.readFile(xlsxPath);
   const todasLinhas = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false });
 
@@ -160,6 +160,8 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
   const dataInicio = temTitulo ? 2 : 1;
 
   const C = resolverColunas(todasLinhas[linhaHeader]);
+  // ID do benefício: opcional (só usado para casar as reativações do livro-razão local; leiaute antigo pode não ter)
+  const idxIdBeneficio = todasLinhas[linhaHeader].findIndex(h => (h || '').toString().trim().toUpperCase() === 'BENEFÍCIO - ID DO BENEFÍCIO');
   const rows = todasLinhas.slice(dataInicio);
   const fmtAdesao = detectarFormatoData(rows.map(r => r[C.adesao]));
   const SITU_VALIDAS = ['Ativo', 'Inadimplente', 'Cancelado', 'Inativo', 'Pendente'];
@@ -245,6 +247,7 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
       cpfAssociado: (r[C.cpfAssociado] || '').toString().trim(),
       adesao,
       valor: toNum(r[C.valorAjust]),
+      idBeneficio: idxIdBeneficio >= 0 ? (r[idxIdBeneficio] || '').toString().trim() : '',
     });
   }
 
@@ -261,6 +264,23 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
   // como a data preferencial; cai para a data da Subscrição só quando a placa ainda não está na BASE.
   const placaParaAdesao = {};
   regs.forEach(x => { if (x.placa && x.adesao) placaParaAdesao[x.placa] = x.adesao; });
+
+  // REATIVAÇÃO = VENDA NOVA no mês em que aconteceu (Talita, 15/10/2026). A BASE não tem data de reativação:
+  // o benefício reativado volta com a data de adesão ORIGINAL (ex.: Cilene/IQI2B12, adesão 09/03, reativada
+  // 08/10). As datas vêm do livro-razão local (atualizar.js compara a situação de cada ID de benefício entre
+  // exports: Cancelado/Inativo -> Ativo/Inadimplente). Cada reativação entra como um registro EXTRA de venda
+  // (adesao = data da reativação), com situação própria — conta em vendas (cards, consultor, unidade, gráfico
+  // diário, conversão), mas NÃO duplica carteira/ativos/inadimplentes. Feito depois dos mapas por placa acima
+  // para não sobrescrever a data de adesão real da placa.
+  let reativacoesContadas = 0;
+  for (const x of regs.slice()) {
+    const datas = (x.idBeneficio && reativacoes[x.idBeneficio]) || [];
+    for (const d of datas) {
+      if (!d || d === x.adesao) continue;
+      regs.push({ ...x, situacao: 'Reativação', adesao: d, reativacao: true });
+      reativacoesContadas++;
+    }
+  }
 
   const ate = ateISO || '2026-12-31';
   // meses fechados mostram total do mês inteiro; só o mês atual (o de "ate") é parcial por natureza.
@@ -414,6 +434,6 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
         + ' de ' + janelaMeta[janelaMeta.length - 1].iso.slice(0, 4) + ' (até ' + ate.split('-').reverse().join('/') + ')' } },
     placaParaRepresentante,
     placaParaAdesao,
-    diagnostico: { registros: regs.length, consultoresSemUnidade: [...dropConsultores] }
+    diagnostico: { registros: regs.length, consultoresSemUnidade: [...dropConsultores], reativacoesContadas }
   };
 };
