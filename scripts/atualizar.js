@@ -234,11 +234,25 @@ function statusDaBase(xlsxPath) {
   const L = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false });
   const hi = L[0].some(h => h && /BENEF/.test(h)) ? 0 : 1;
   const H = L[hi].map(h => (h || '').toString().trim().toUpperCase());
-  const iId = H.indexOf('BENEFÍCIO - ID DO BENEFÍCIO'), iS = H.indexOf('BENEFÍCIO - SITUAÇÃO ATUAL');
+  const iId = H.indexOf('BENEFÍCIO - ID DO BENEFÍCIO'), iS = H.indexOf('BENEFÍCIO - SITUAÇÃO ATUAL'), iA = H.indexOf('BENEFÍCIO - DATA DE ADESÃO');
   if (iId < 0 || iS < 0) return null;
-  const st = {};
-  for (const r of L.slice(hi + 1)) { const id = (r[iId] || '').toString().trim(); if (id) st[id] = (r[iS] || '').toString().trim().replace(/^Endosso /, ''); }
+  const st = {}, adesao = {};
+  for (const r of L.slice(hi + 1)) {
+    const id = (r[iId] || '').toString().trim(); if (!id) continue;
+    st[id] = (r[iS] || '').toString().trim().replace(/^Endosso /, '');
+    const m = String(r[iA] || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); // BASE vem em D/M/AAAA
+    if (m) adesao[id] = m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+  }
+  Object.defineProperty(st, '__adesao', { value: adesao, enumerable: false });
   return st;
+}
+// Adesão nova costuma nascer "Inativo" (vistoria/rastreador pendente) e virar "Ativo" dias depois — isso é
+// ATIVAÇÃO da venda, não reativação (15/10/2026: OBN9G03/DPB0B49, adesão 15/10, Inativo -> Ativo no mesmo dia).
+// Inativo -> Ativo só conta como reativação se a adesão tiver mais de 30 dias.
+const DIAS_ATIVACAO_NOVA = 30;
+function ehAtivacaoDeVendaNova(sitAnterior, adesaoISO, diaISO) {
+  if (sitAnterior !== 'Inativo' || !adesaoISO) return false;
+  return (new Date(diaISO + 'T12:00:00') - new Date(adesaoISO + 'T12:00:00')) / 86400000 <= DIAS_ATIVACAO_NOVA;
 }
 function atualizarReativacoes(base) {
   const livro = lerJsonLocal(REATIV_PATH, {});
@@ -250,7 +264,7 @@ function atualizarReativacoes(base) {
   if (ant && ant.meta && nCur < 0.9 * ant.meta.linhas) { log('AVISO: BASE com ' + nCur + ' benefícios contra ' + ant.meta.linhas + ' da anterior (export filtrado?) — reativações não atualizadas.'); return livro; }
   const dia = dataLocal(base.m); const novas = [];
   if (ant) for (const [id, s] of Object.entries(cur)) {
-    if (SIT_FORA.has(ant.status[id]) && SIT_DENTRO.has(s)) {
+    if (SIT_FORA.has(ant.status[id]) && SIT_DENTRO.has(s) && !ehAtivacaoDeVendaNova(ant.status[id], cur.__adesao[id], dia)) {
       const lista = livro[id] || (livro[id] = []);
       if (!lista.includes(dia)) { lista.push(dia); novas.push(id); }
     }
