@@ -400,6 +400,20 @@ try {
   res.data.unidade = res.data.unidade.filter(x => !vazio(x));
   if (removidos.length) log('representantes sem movimento no período (removidos da tabela): ' + removidos.join(', '));
 
+  // Consultores que aparecem MESMO SEM VENDA no Siprov (só cotação no PPM) — opt-in, nome a nome, a pedido da
+  // Talita. A regra geral continua: quem só tem cotação fica fora (decisão de 07/10/2026, caso Ourinhos).
+  // 20/10/2026: Kelly Cristina da Silva (Cascavel, 9 cotações em out/26, nenhuma placa no Siprov).
+  const CONSULTORES_SO_COTACAO = [
+    { nome: 'Kelly Cristina da Silva', unidade: 'Kcor Cascavel - Fjlm Consultoria e Corretora' },
+  ];
+  for (const c of CONSULTORES_SO_COTACAO) {
+    if (res.data.representante.some(r => r.nome.toUpperCase() === c.nome.toUpperCase())) continue; // já tem venda: entra normal
+    const modelo = res.data.representante[0];
+    const zerado = Object.fromEntries(Object.entries(modelo).map(([k, v]) => [k, typeof v === 'number' ? 0 : v]));
+    res.data.representante.push(Object.assign(zerado, { nome: c.nome, unidade: c.unidade }));
+    log('consultor só com cotação incluído na tabela: ' + c.nome + ' (' + c.unidade + ')');
+  }
+
   // Detecta conversão CORROMPIDA: quando o cruzamento cotação<->fechamento falha (ex.: export do
   // Cockpit Cotação com colunas em ordem diferente do "Controle_de_Cotações_V2" manual, lido por ÍNDICE
   // fixo em transformador_conversao.js), TODO mundo casa "cotado === fechado" e a tabela mostra 100% em
