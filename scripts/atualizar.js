@@ -269,9 +269,14 @@ function atualizarReativacoes(base) {
       if (!lista.includes(dia)) { lista.push(dia); novas.push(id); }
     }
   }
+  // Reativação costuma passar por "Pendente" (nova subscrição em análise) antes de voltar: Inativo -> Pendente ->
+  // Inadimplente/Ativo (22/10/2026: IVL5J71/IVL5J75 do Tiago Pasquini não foram detectadas). Enquanto estiver
+  // Pendente, o snapshot GUARDA a situação de fora (Inativo/Cancelado), para a volta ser detectada quando ativar.
+  const snap = {};
+  for (const [id, s] of Object.entries(cur)) snap[id] = (s === 'Pendente' && ant && SIT_FORA.has(ant.status[id])) ? ant.status[id] : s;
   fs.mkdirSync(ESTADO_DIR, { recursive: true });
   fs.writeFileSync(REATIV_PATH, JSON.stringify(livro, null, 1));
-  fs.writeFileSync(STATUS_PATH, JSON.stringify({ meta: { arquivo: base.f, mtime: base.m, linhas: nCur }, status: cur }));
+  fs.writeFileSync(STATUS_PATH, JSON.stringify({ meta: { arquivo: base.f, mtime: base.m, linhas: nCur }, status: snap }));
   log('reativações: ' + novas.length + ' nova(s) neste export' + (novas.length ? ' (IDs ' + novas.join(', ') + ')' : '') + ' | total no livro-razão: ' + Object.values(livro).reduce((s, l) => s + l.length, 0));
   return livro;
 }
