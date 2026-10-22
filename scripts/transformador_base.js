@@ -22,6 +22,15 @@ const ALIAS_CONSULTOR = {
   'CARLOS EDUARDO CORDEIRO N': 'CARLOS EDUARDO CORDEIRO', // cadastro oficial: 1 entrada, CPF 040.609.489-69
 };
 
+// Consultor por PLACA, para quando o Siprov exporta a placa SEM consultor e sem agência e a cotação do PPM aponta
+// outra pessoa. Só vale com o consultor vazio na BASE (se o Siprov corrigir, a BASE manda).
+// 22/10/2026 (Talita): BCO0166/JCD8E82 (Ivaldo Boetto Cotrim) — proposta 32114 assinada via Fontana & Cortez
+// (Leandro), mas a cotação 32275 do PPM estava em "Luiz Andre / Rodar Gestão".
+const CONSULTOR_POR_PLACA = {
+  BCO0166: 'LEANDRO SANTOS CORTEZ',
+  JCD8E82: 'LEANDRO SANTOS CORTEZ',
+};
+
 // Troca de unidade COM DATA: a partir de `desde` (data de adesão, inclusive) o consultor conta para a nova
 // unidade; adesões anteriores seguem na unidade do mapa_unidades.json. Na tabela de representantes ele
 // aparece na unidade vigente (a mais recente). Chave em MAIÚSCULAS, lista em ordem crescente de `desde`.
@@ -229,6 +238,7 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
     consultorRaw = ALIAS_CONSULTOR[consultorRaw.toUpperCase()] || consultorRaw;
     const repRaw = (r[C.representante] || '').toString().trim();
     const placa = normPlaca(r[C.placa]);
+    if (!consultorRaw && placa && CONSULTOR_POR_PLACA[placa]) consultorRaw = CONSULTOR_POR_PLACA[placa];
     // Quem vendeu, em camadas: o consultor da BASE manda; sem ele, busca a PESSOA pela placa na Subscrição;
     // só então cai na agência. Sem a camada da placa, 2.2k placas ficavam na PJ (com zero vendas) enquanto
     // as vendas iam para a pessoa — estoque e venda do mesmo negócio em linhas diferentes.
