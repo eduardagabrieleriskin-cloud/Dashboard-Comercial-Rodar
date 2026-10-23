@@ -111,10 +111,13 @@ function canonicalizeUnidade(s) {
   if (alias) semCodigo = alias.replace(/^\d+\s*-\s*/, '');
   return titleCase(semCodigo);
 }
-function ehTeste(consultor, loja) {
+function ehTeste(consultor, loja, associado) {
   const n = (consultor || '').trim().toLowerCase();
   if ((loja || '').trim().toLowerCase() === 'teste rodar') return true;
-  return n === 'eduarda' || n === 'yara' || n === 'teste' || /^teste?\b/.test(n) || n.includes('(teste)');
+  // 23/10/2026: cadastros de teste com consultor vazio/real ("Mari Teste 2310", "teste todos os produtos",
+  // consultor "Marcia Teste") estavam contando como venda — AAA1010/BBB2020 em out, AAA1234 em set.
+  if (/\btestes?\b/i.test(associado || '')) return true;
+  return n === 'eduarda' || n === 'yara' || n === 'teste' || /\bteste?\b/.test(n) || n.includes('(teste)');
 }
 // O formato da coluna de data NÃO pode ser decidido linha a linha: "8/5/26" é ambíguo (5/ago em M/D,
 // 8/mai em D/M). Chutar D/M jogava toda adesão de agosto com dia <= 12 para outros meses — foi o que
@@ -180,6 +183,7 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
   const C = resolverColunas(todasLinhas[linhaHeader]);
   // ID do benefício: opcional (só usado para casar as reativações do livro-razão local; leiaute antigo pode não ter)
   const idxIdBeneficio = todasLinhas[linhaHeader].findIndex(h => (h || '').toString().trim().toUpperCase() === 'BENEFÍCIO - ID DO BENEFÍCIO');
+  const idxAssociado = todasLinhas[linhaHeader].findIndex(h => (h || '').toString().trim().toUpperCase() === 'ASSOCIADO - NOME/RAZÃO SOCIAL');
   const rows = todasLinhas.slice(dataInicio);
   const fmtAdesao = detectarFormatoData(rows.map(r => r[C.adesao]));
   const SITU_VALIDAS = ['Ativo', 'Inadimplente', 'Cancelado', 'Inativo', 'Pendente'];
@@ -233,7 +237,7 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
     situacao = NORMALIZA_SITUACAO[situacao] || situacao;
     if (!SITU_VALIDAS.includes(situacao)) continue;              // fora Recusado/vazio
     const loja = r[C.loja];
-    if (ehTeste(r[C.consultor], loja)) continue;                 // fora testes
+    if (ehTeste(r[C.consultor], loja, r[idxAssociado])) continue; // fora testes
     let consultorRaw = (r[C.consultor] || '').toString().trim();
     consultorRaw = ALIAS_CONSULTOR[consultorRaw.toUpperCase()] || consultorRaw;
     const repRaw = (r[C.representante] || '').toString().trim();
