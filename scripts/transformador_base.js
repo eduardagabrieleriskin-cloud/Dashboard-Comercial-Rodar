@@ -299,7 +299,9 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
   for (const x of regs.slice()) {
     const datas = (x.idBeneficio && reativacoes[x.idBeneficio]) || [];
     for (const d of datas) {
-      if (!d || d === x.adesao) continue;
+      // adesão e reativação no MESMO mês = uma venda só (já contada pela adesão). 27/10/2026: BVX1C09 aderiu em
+      // 26/10, foi cancelada e voltou em 27/10 — contava 2x em outubro.
+      if (!d || d === x.adesao || (x.adesao && d.slice(0, 7) === x.adesao.slice(0, 7))) continue;
       regs.push({ ...x, situacao: 'Reativação', adesao: d, reativacao: true });
       reativacoesContadas++;
     }
