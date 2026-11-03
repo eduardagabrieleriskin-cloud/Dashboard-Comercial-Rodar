@@ -302,6 +302,9 @@ module.exports = function build(xlsxPath, ateISO, sinais) {
       // adesão e reativação no MESMO mês = uma venda só (já contada pela adesão). 27/10/2026: BVX1C09 aderiu em
       // 26/10, foi cancelada e voltou em 27/10 — contava 2x em outubro.
       if (!d || d === x.adesao || (x.adesao && d.slice(0, 7) === x.adesao.slice(0, 7))) continue;
+      // volta até 30 dias depois da adesão = mesma venda, mesmo virando o mês (Talita, 03/11/2026: MMI1F56 aderiu
+      // em 30/10, cancelou e voltou em 03/11 — contava em out e em nov). Mesmo prazo da ativação de venda nova.
+      if (x.adesao && (new Date(d + 'T12:00:00') - new Date(x.adesao + 'T12:00:00')) / 86400000 <= 30) continue;
       regs.push({ ...x, situacao: 'Reativação', adesao: d, reativacao: true });
       reativacoesContadas++;
     }
