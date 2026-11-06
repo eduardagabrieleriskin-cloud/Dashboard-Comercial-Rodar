@@ -102,6 +102,10 @@ function titleCase(s) {
 // 15/10/2026 (Talita): tudo que for Kcor Light Maringá - Jardim Paraíso conta em Kcor Maringá.
 const UNIDADE_ALIAS = {
   'KCOR LIGHT MARINGA - JARDIM PARAISO': '237 - Kcor Maringá',
+  // 06/11/2026: Siprov e PPM (franquia 150) chamam de "Água Verde" a mesma unidade que o painel chama de Alto
+  // Boqueirão (agência A.F. Orth — Luccas, Luiz Fernando Orth, Izidoro, Jap Assessoria). Sem isso a unidade
+  // aparece dividida em duas.
+  'KCOR UNIDADE CURITIBA - AGUA VERDE': 'Kcor Unidade Curitiba - Alto Boqueirão',
 };
 const semAcentoUpper = s => (s || '').toString().normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
 function canonicalizeUnidade(s) {
