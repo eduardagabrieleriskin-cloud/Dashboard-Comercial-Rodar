@@ -106,6 +106,10 @@ const UNIDADE_ALIAS = {
   // Boqueirão (agência A.F. Orth — Luccas, Luiz Fernando Orth, Izidoro, Jap Assessoria). Sem isso a unidade
   // aparece dividida em duas.
   'KCOR UNIDADE CURITIBA - AGUA VERDE': 'Kcor Unidade Curitiba - Alto Boqueirão',
+  // 17/11/2026: "Maria I. Carneiro Ltda" (franqueado no Relatório de Subscrição / agência no Siprov) é a Kcor São
+  // Paulo — Elisangela Luna da Silva e outras placas caíam numa unidade separada.
+  'MARIA I. CARNEIRO LTDA': '946 - Kcor São Paulo',
+  'KCOR SAO PAULO MARIA I. CARNEIRO LTDA': '946 - Kcor São Paulo',
 };
 const semAcentoUpper = s => (s || '').toString().normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
 function canonicalizeUnidade(s) {
